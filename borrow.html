@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025聖誕餐會 設備外借管理系統</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        
+        /* 首頁按鈕設計 (改為置中排版) */
+        .home-menu { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .btn-main { width: 100%; max-width: 280px; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
+        .btn-borrow { background-color: #3498db; color: white; }
+        .btn-borrow:hover { background-color: #2980b9; }
+        .btn-return { background-color: #e67e22; color: white; }
+        .btn-return:hover { background-color: #d35400; }
+        
+        /* 表單設計 */
+        .form-section { display: none; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px; }
+        input[type="text"], input[type="date"], input[type="time"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        .hidden { display: none; }
+        .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-submit:hover { background-color: #2ecc71; }
+        .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎄 聖誕餐會設備管理系統</h2>
+
+    <!-- 首頁選單 -->
+    <div id="homeMenu" class="home-menu">
+        <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
+        <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
+    </div>
+
+    <!-- 借用表單區塊 -->
+    <div id="borrowSection" class="form-section">
+        <h3 style="text-align: center; color: #3498db;">📝 填寫借用單</h3>
+        <form id="borrowForm">
+            <div class="form-group">
+                <label>日期與星期</label>
+                <input type="date" id="borrowDate" required>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>借用時間</label>
+                    <input type="time" id="startTime" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>歸還時間</label>
+                    <input type="time" id="endTime" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>小組負責人 (姓名 / 電話)</label>
+                <input type="text" id="leaderInfo" placeholder="例：約書亞小組 - 王大明 0912..." required>
+            </div>
+            <div class="form-group">
+                <label>借用場地</label>
+                <select id="location" onchange="checkRules()" required>
+                    <option value="">請選擇場地...</option>
+                    <option value="交誼廳">交誼廳</option>
+                    <option value="餐廳">餐廳</option>
+                    <option value="兒主/幼主">兒主/幼主</option>
+                    <option value="教會外場地">教會外場地</option>
+                </select>
+            </div>
+            
+            <div class="form-group hidden" id="soundTechSection">
+                <label style="color: #e74c3c;">
+                    <input type="checkbox" id="needTech"> 需要音控同工協助開啟設備
+                </label>
+            </div>
+
+            <hr>
+            <h4 style="color: #333;">設備需求</h4>
+            <div class="form-group">
+                <label>MA303 (總量：3)</label>
+                <select id="ma303"><option value="0">不需要</option><option value="1">1 台</option><option value="2">2 台</option><option value="3">3 台</option></select>
+            </div>
+            <div class="form-group">
+                <label>MA707 (總量：1)</label>
+                <select id="ma707"><option value="0">不需要</option><option value="1">1 台</option></select>
+            </div>
+            <div class="form-group">
+                <label>譜架 (總量：6，最多借2個)</label>
+                <select id="musicStand"><option value="0">不需要</option><option value="1">1 個</option><option value="2">2 個</option></select>
+            </div>
+            <div class="form-group" id="pianoSection">
+                <label>鋼琴 (教會外場地禁止借用)</label>
+                <label style="font-weight: normal;"><input type="checkbox" id="piano"> 需要借用鋼琴</label>
+            </div>
+            
+            <div class="form-group">
+                <label>其他 (備註)</label>
+                <input type="text" id="notes" placeholder="無">
+            </div>
+
+            <button type="button" class="btn-submit" id="submitBorrowBtn" onclick="submitBorrow()">送出借用申請</button>
+            <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
+        </form>
+    </div>
+
+    <!-- 歸還表單區塊 -->
+    <div id="returnSection" class="form-section">
+        <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
+        <p style="text-align: center; font-size: 14px; color: #666;">歸還設備時填寫，系統將發送提醒給管理員確認。</p>
+        <form id="returnForm">
+            <div class="form-group">
+                <label>歸還日期</label>
+                <input type="date" id="returnDate" required>
+            </div>
+            <div class="form-group">
+                <label>借用時填寫的「小組負責人」資訊</label>
+                <input type="text" id="returnLeaderInfo" placeholder="例：約書亞小組 - 王大明" required>
+            </div>
+            <div class="form-group">
+                <label>歸還狀態 (如有損壞或遺失請在此備註)</label>
+                <input type="text" id="returnNotes" placeholder="設備皆正常歸還">
+            </div>
+            <button type="button" class="btn-submit" id="submitReturnBtn" onclick="submitReturn()">通知管理員我已歸還</button>
+            <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 你的專屬 Google Apps Script 網址 (已自動帶入)
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxGwq53N1m2rs6EZi8NokYKXZJlEr4DyEPeqkcbqWFi1CT5GOudpYMxmnN1RKgJE69_Dg/exec';
+
+    function showSection(sectionId) {
+        document.getElementById('homeMenu').style.display = 'none';
+        document.getElementById('borrowSection').style.display = 'none';
+        document.getElementById('returnSection').style.display = 'none';
+        
+        if (sectionId === 'homeMenu') {
+            document.getElementById('homeMenu').style.display = 'flex';
+        } else {
+            document.getElementById(sectionId).style.display = 'block';
+        }
+    }
+
+    function checkRules() {
+        var loc = document.getElementById("location").value;
+        var pianoSec = document.getElementById("pianoSection");
+        var techSec = document.getElementById("soundTechSection");
+        
+        if (loc === "教會外場地") {
+            pianoSec.classList.add("hidden");
+            document.getElementById("piano").checked = false;
+        } else {
+            pianoSec.classList.remove("hidden");
+        }
+
+        if (loc === "兒主/幼主") {
+            techSec.classList.remove("hidden");
+        } else {
+            techSec.classList.add("hidden");
+            document.getElementById("needTech").checked = false;
+        }
+    }
+
+    function submitBorrow() {
+        var finalNotes = document.getElementById("notes").value;
+        if (document.getElementById("needTech").checked) {
+            finalNotes = "[需要音控支援] " + finalNotes;
+        }
+
+        var data = {
+            type: "borrow",
+            borrowDate: document.getElementById("borrowDate").value,
+            startTime: document.getElementById("startTime").value,
+            endTime: document.getElementById("endTime").value,
+            location: document.getElementById("location").value,
+            leaderInfo: document.getElementById("leaderInfo").value,
+            ma303: document.getElementById("ma303").value,
+            ma707: document.getElementById("ma707").value,
+            piano: document.getElementById("piano").checked ? "是" : "無",
+            musicStand: document.getElementById("musicStand").value,
+            notes: finalNotes
+        };
+
+        if (!data.borrowDate || !data.startTime || !data.endTime || !data.leaderInfo || !data.location) {
+            alert("請填寫所有必填欄位！");
+            return;
+        }
+
+        var btn = document.getElementById("submitBorrowBtn");
+        btn.disabled = true;
+        btn.innerText = "資料傳送中...";
+
+        fetch(scriptURL, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            mode: 'no-cors'
+        }).then(() => {
+            alert("借用申請已成功送出！");
+            document.getElementById("borrowForm").reset();
+            checkRules();
+            showSection('homeMenu');
+            btn.disabled = false;
+            btn.innerText = "送出借用申請";
+        }).catch(error => {
+            alert("發生錯誤，請稍後再試！");
+            btn.disabled = false;
+            btn.innerText = "送出借用申請";
+        });
+    }
+
+    function submitReturn() {
+        var date = document.getElementById("returnDate").value;
+        var leader = document.getElementById("returnLeaderInfo").value;
+        var notes = document.getElementById("returnNotes").value || "設備皆正常歸還";
+        
+        if(!date || !leader) {
+            alert("請填寫歸還日期與小組資訊！");
+            return;
+        }
+        
+        var data = {
+            type: "return",
+            returnDate: date,
+            leaderInfo: leader,
+            notes: notes
+        };
+        
+        var btn = document.getElementById("submitReturnBtn");
+        btn.disabled = true;
+        btn.innerText = "通知發送中...";
+
+        fetch(scriptURL, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            mode: 'no-cors'
+        }).then(() => {
+            alert("已成功發送歸還通知！");
+            document.getElementById("returnForm").reset();
+            showSection('homeMenu');
+            btn.disabled = false;
+            btn.innerText = "通知管理員我已歸還";
+        }).catch(error => {
+            alert("發生錯誤，請稍後再試！");
+            btn.disabled = false;
+            btn.innerText = "通知管理員我已歸還";
+        });
+    }
+</script>
+</body>
+</html>
