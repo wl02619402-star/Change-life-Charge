@@ -23,7 +23,6 @@
         .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
-        /* 讓表格在手機上也可以左右滑動觀看 */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
@@ -42,7 +41,6 @@
         <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
     </div>
 
-    <!-- 管理員登入彈窗 -->
     <div id="loginModal" class="modal">
         <div class="modal-content">
             <h3 style="margin-top: 0; color: #34495e;">🔐 管理員身分驗證</h3>
@@ -53,7 +51,6 @@
         </div>
     </div>
 
-    <!-- 借用表單 -->
     <div id="borrowSection" class="form-section">
         <h3 style="text-align: center; color: #3498db;">📝 填寫借用單</h3>
         <form id="borrowForm">
@@ -103,7 +100,6 @@
         </form>
     </div>
 
-    <!-- 歸還表單 -->
     <div id="returnSection" class="form-section">
         <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
         <form id="returnForm">
@@ -118,7 +114,6 @@
         </form>
     </div>
 
-    <!-- 後台管理面板 -->
     <div id="adminSection" class="admin-section">
         <h3 style="color: #34495e; text-align: center;">📊 設備借還後台管理</h3>
         <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -127,14 +122,9 @@
         </div>
         
         <h4>📦 借用紀錄清單</h4>
-        <!-- 加入了水平卷軸，避免欄位變多時破版 -->
         <div style="overflow-x: auto; padding-bottom: 10px;">
             <table id="borrowTable">
-                <tr>
-                    <th>日期</th><th>時間</th><th>場地</th><th>負責人</th>
-                    <!-- 新增的設備欄位 -->
-                    <th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th>
-                </tr>
+                <tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th></tr>
             </table>
         </div>
 
@@ -230,13 +220,11 @@
         showSection('homeMenu');
     }
 
-    // 載入後台資料（已加入器材欄位與顯示優化）
     async function loadAdminData() {
         const { data: borrowData, error: borrowError } = await db.from('borrow_records').select('*').order('id', { ascending: false });
         if (!borrowError) {
             var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th></tr>';
             borrowData.forEach(item => {
-                // 如果是 0 或無，替換成 "-"，讓畫面更乾淨
                 let vMa303 = (item.ma303 === "0" || !item.ma303) ? "-" : item.ma303;
                 let vMa707 = (item.ma707 === "0" || !item.ma707) ? "-" : item.ma707;
                 let vStand = (item.music_stand === "0" || !item.music_stand) ? "-" : item.music_stand;
@@ -244,14 +232,10 @@
                 let vNotes = (item.notes) ? item.notes : "-";
 
                 bHtml += `<tr>
-                    <td>${item.borrow_date}</td>
-                    <td>${item.start_time}-${item.end_time}</td>
-                    <td>${item.location}</td>
-                    <td>${item.leader_info}</td>
-                    <td style="text-align:center;">${vMa303}</td>
-                    <td style="text-align:center;">${vMa707}</td>
-                    <td style="text-align:center;">${vStand}</td>
-                    <td style="text-align:center;">${vPiano}</td>
+                    <td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td>
+                    <td>${item.location}</td><td>${item.leader_info}</td>
+                    <td style="text-align:center;">${vMa303}</td><td style="text-align:center;">${vMa707}</td>
+                    <td style="text-align:center;">${vStand}</td><td style="text-align:center;">${vPiano}</td>
                     <td>${vNotes}</td>
                 </tr>`;
             });
@@ -268,31 +252,114 @@
         }
     }
 
+    // 🔥 升級版：包含場地與設備重疊防呆機制的送出函式
     async function submitBorrow() {
         if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
-        if (!document.getElementById("borrowDate").value || !document.getElementById("startTime").value || !document.getElementById("endTime").value || !document.getElementById("leaderInfo").value || !document.getElementById("location").value) {
+        
+        var date = document.getElementById("borrowDate").value;
+        var startTime = document.getElementById("startTime").value;
+        var endTime = document.getElementById("endTime").value;
+        var loc = document.getElementById("location").value;
+        var leader = document.getElementById("leaderInfo").value;
+
+        if (!date || !startTime || !endTime || !leader || !loc) {
             alert("請填寫所有必填欄位！"); return;
         }
 
-        var btn = document.getElementById("submitBorrowBtn");
-        btn.disabled = true; btn.innerText = "資料秒速傳送中...";
+        // 將時間轉換成整數小時 (例如 18:00 變成 18)
+        var startHour = parseInt(startTime.split(':')[0], 10);
+        var endHour = parseInt(endTime.split(':')[0], 10);
+        
+        if (startHour >= endHour) {
+            alert("歸還時間必須晚於借用時間！"); return;
+        }
 
+        var reqMa303 = parseInt(document.getElementById("ma303").value) || 0;
+        var reqMa707 = parseInt(document.getElementById("ma707").value) || 0;
+        var reqStand = parseInt(document.getElementById("musicStand").value) || 0;
+        var reqPiano = document.getElementById("piano").checked;
+
+        var btn = document.getElementById("submitBorrowBtn");
+        btn.disabled = true; btn.innerText = "檢查時段與設備狀態中...";
+
+        // 1. 抓取同一天的所有借用紀錄進行比對
+        const { data: records, error: fetchError } = await db
+            .from('borrow_records')
+            .select('*')
+            .eq('borrow_date', date);
+
+        if (fetchError) {
+            alert("資料庫連線失敗：" + fetchError.message);
+            btn.disabled = false; btn.innerText = "送出借用申請";
+            return;
+        }
+
+        // 2. 逐小時比對衝突 (防呆機制核心邏輯)
+        for (let h = startHour; h < endHour; h++) {
+            let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
+
+            for (let record of records) {
+                let recStart = parseInt(record.start_time.split(':')[0], 10);
+                let recEnd = parseInt(record.end_time.split(':')[0], 10);
+
+                // 若該紀錄的時間範圍涵蓋了當下檢查的小時區間 (交接點不衝突)
+                if (recStart <= h && recEnd > h) {
+                    // 檢查場地衝突
+                    if (record.location === loc) {
+                        alert(`⛔ 【場地衝突】\n\n${h}:00-${h+1}:00 時段的「${loc}」已被其他人借用！\n請修改時間或選擇其他場地。`);
+                        btn.disabled = false; btn.innerText = "送出借用申請";
+                        return;
+                    }
+                    
+                    // 累加該小時段被借出的設備總量
+                    usedMa303 += parseInt(record.ma303) || 0;
+                    usedMa707 += parseInt(record.ma707) || 0;
+                    usedStand += parseInt(record.music_stand) || 0;
+                    if (record.piano === "是") usedPiano = true;
+                }
+            }
+
+            // 檢查設備庫存是否足夠
+            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) {
+                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 MA303 僅剩 ${3 - usedMa303} 台\n您預計借用 ${reqMa303} 台，請修改數量！`);
+                btn.disabled = false; btn.innerText = "送出借用申請";
+                return;
+            }
+            if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) {
+                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 MA707 已被借出！`);
+                btn.disabled = false; btn.innerText = "送出借用申請";
+                return;
+            }
+            if (reqStand > 0 && (reqStand + usedStand > 6)) {
+                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 譜架 僅剩 ${6 - usedStand} 個！`);
+                btn.disabled = false; btn.innerText = "送出借用申請";
+                return;
+            }
+            if (reqPiano && usedPiano) {
+                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 鋼琴 已被借出！`);
+                btn.disabled = false; btn.innerText = "送出借用申請";
+                return;
+            }
+        }
+
+        // 3. 通過防呆測試，準備寫入資料
+        btn.innerText = "資料秒速傳送中...";
         var techOption = "否";
-        if (document.getElementById("location").value === "兒主" || document.getElementById("location").value === "幼主") {
+        if (loc === "兒主" || loc === "幼主") {
             techOption = document.querySelector('input[name="needTech"]:checked').value;
         }
 
         const { error } = await db.from('borrow_records').insert([{
-            borrow_date: document.getElementById("borrowDate").value,
-            start_time: document.getElementById("startTime").value,
-            end_time: document.getElementById("endTime").value,
-            location: document.getElementById("location").value,
-            leader_info: document.getElementById("leaderInfo").value,
+            borrow_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            location: loc,
+            leader_info: leader,
             need_tech: techOption,
-            ma303: document.getElementById("ma303").value,
-            ma707: document.getElementById("ma707").value,
-            piano: document.getElementById("piano").checked ? "是" : "無",
-            music_stand: document.getElementById("musicStand").value,
+            ma303: reqMa303.toString(),
+            ma707: reqMa707.toString(),
+            piano: reqPiano ? "是" : "無",
+            music_stand: reqStand.toString(),
             notes: document.getElementById("notes").value
         }]);
 
