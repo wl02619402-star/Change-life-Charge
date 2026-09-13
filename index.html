@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2025聖誕餐會 設備外借管理系統</title>
+    <!-- 匯入 Supabase 核心套件 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
@@ -46,13 +48,10 @@
         <h3 style="text-align: center; color: #3498db;">📝 填寫借用單</h3>
         <form id="borrowForm">
             <div class="form-group"><label>日期與星期</label><input type="date" id="borrowDate" required></div>
-            
-            <!-- 加上 step="1800" 的時間欄位 -->
             <div style="display: flex; gap: 10px;">
-                <div class="form-group" style="flex: 1;"><label>借用時間</label><input type="time" id="startTime" step="3600" required></div>
-                <div class="form-group" style="flex: 1;"><label>歸還時間</label><input type="time" id="endTime" step="3600" required></div>
+                <div class="form-group" style="flex: 1;"><label>借用時間</label><input type="time" id="startTime" step="3600" onchange="snapTime(this)" required></div>
+                <div class="form-group" style="flex: 1;"><label>歸還時間</label><input type="time" id="endTime" step="3600" onchange="snapTime(this)" required></div>
             </div>
-            
             <div class="form-group"><label>小組負責人 (姓名 / 電話)</label><input type="text" id="leaderInfo" placeholder="例：王大明 0912345678" required></div>
             <div class="form-group">
                 <label>借用場地</label>
@@ -84,7 +83,7 @@
 
             <div class="form-group" style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
                 <label style="font-weight: normal; color: #d9534f; font-size: 15px; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="agreeRules" style="width: 18px; height: 18px;" required> 
+                    <input type="checkbox" id="agreeRules" required> 
                     我已閱讀並同意 <span class="rules-link" onclick="openModal()">設備借用守則</span>
                 </label>
             </div>
@@ -110,7 +109,6 @@
     </div>
 </div>
 
-<!-- 借用守則彈出視窗 -->
 <div id="rulesModal" class="modal">
     <div class="modal-content">
         <h3 style="margin-top: 0;">設備借用守則</h3>
@@ -122,9 +120,14 @@
 </div>
 
 <script>
-    // 你的專屬網址已幫你保留
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbxGwq53N1m2rs6EZi8NokYKXZJlEr4DyEPeqkcbqWFi1CT5GOudpYMxmnN1RKgJE69_Dg/exec';
+    // 這裡已經幫你把 Supabase 的鑰匙設定好了！
+    const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
+    
+    // 初始化 Supabase
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // 介面控制與防呆時間邏輯
     function showSection(sectionId) {
         document.getElementById('homeMenu').style.display = 'none';
         document.getElementById('borrowSection').style.display = 'none';
@@ -140,92 +143,109 @@
         var loc = document.getElementById("location").value;
         var pianoSec = document.getElementById("pianoSection");
         var techSec = document.getElementById("soundTechSection");
-        
-        if (loc === "教會外場地") {
-            pianoSec.classList.add("hidden");
-            document.getElementById("piano").checked = false;
-        } else {
-            pianoSec.classList.remove("hidden");
-        }
+        if (loc === "教會外場地") { pianoSec.classList.add("hidden"); document.getElementById("piano").checked = false; } else { pianoSec.classList.remove("hidden"); }
+        if (loc === "兒主" || loc === "幼主") { techSec.classList.remove("hidden"); } else { techSec.classList.add("hidden"); }
+    }
 
-        if (loc === "兒主" || loc === "幼主") {
-            techSec.classList.remove("hidden");
-        } else {
-            techSec.classList.add("hidden");
+    function snapTime(input) {
+        if (!input.value) return;
+        var parts = input.value.split(':');
+        var hours = parseInt(parts[0], 10);
+        var mins = parseInt(parts[1], 10);
+        if (mins !== 0) {
+            if (mins >= 30) hours += 1;
+            if (hours >= 24) hours = 0;
+            input.value = hours.toString().padStart(2, '0') + ':00';
+            alert("系統已將時間自動調整為整點！");
         }
     }
 
-    function submitBorrow() {
-        if (!document.getElementById("agreeRules").checked) {
-            alert("請勾選同意借用守則！");
-            return;
-        }
-        var finalNotes = document.getElementById("notes").value;
-        var techOption = document.querySelector('input[name="needTech"]:checked').value;
-        if (document.getElementById("location").value === "兒主" || document.getElementById("location").value === "幼主") {
-            finalNotes = "[音控協助: " + techOption + "] " + finalNotes;
-        }
-
-        var data = {
-            type: "borrow",
-            borrowDate: document.getElementById("borrowDate").value,
-            startTime: document.getElementById("startTime").value,
-            endTime: document.getElementById("endTime").value,
-            location: document.getElementById("location").value,
-            leaderInfo: document.getElementById("leaderInfo").value,
-            ma303: document.getElementById("ma303").value,
-            ma707: document.getElementById("ma707").value,
-            piano: document.getElementById("piano").checked ? "是" : "無",
-            musicStand: document.getElementById("musicStand").value,
-            notes: finalNotes
-        };
-
-        if (!data.borrowDate || !data.startTime || !data.endTime || !data.leaderInfo || !data.location) {
-            alert("請填寫所有必填欄位！");
-            return;
+    // 🚀 送出借用申請 (直連 Supabase)
+    async function submitBorrow() {
+        if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
+        if (!document.getElementById("borrowDate").value || !document.getElementById("startTime").value || !document.getElementById("endTime").value || !document.getElementById("leaderInfo").value || !document.getElementById("location").value) {
+            alert("請填寫所有必填欄位！"); return;
         }
 
         var btn = document.getElementById("submitBorrowBtn");
-        btn.disabled = true; btn.innerText = "資料傳送中...";
-        fetch(scriptURL, { method: 'POST', body: JSON.stringify(data), mode: 'no-cors' })
-        .then(() => {
+        btn.disabled = true; btn.innerText = "資料秒速傳送中...";
+
+        var techOption = "否";
+        if (document.getElementById("location").value === "兒主" || document.getElementById("location").value === "幼主") {
+            techOption = document.querySelector('input[name="needTech"]:checked').value;
+        }
+
+        const { error } = await supabase.from('borrow_records').insert([{
+            borrow_date: document.getElementById("borrowDate").value,
+            start_time: document.getElementById("startTime").value,
+            end_time: document.getElementById("endTime").value,
+            location: document.getElementById("location").value,
+            leader_info: document.getElementById("leaderInfo").value,
+            need_tech: techOption,
+            ma303: document.getElementById("ma303").value,
+            ma707: document.getElementById("ma707").value,
+            piano: document.getElementById("piano").checked ? "是" : "無",
+            music_stand: document.getElementById("musicStand").value,
+            notes: document.getElementById("notes").value
+        }]);
+
+        if (error) { alert("發生錯誤：" + error.message); } 
+        else {
             alert("借用申請已成功送出！");
             document.getElementById("borrowForm").reset();
             checkRules(); showSection('homeMenu');
-            btn.disabled = false; btn.innerText = "送出借用申請";
-        });
+        }
+        btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    function submitReturn() {
+    // 📸 送出歸還單 (原檔上傳 Supabase Storage)
+    async function submitReturn() {
         var date = document.getElementById("returnDate").value;
         var name = document.getElementById("returnLeaderName").value;
         var phone = document.getElementById("returnLeaderPhone").value;
         var fileInput = document.getElementById("returnPhoto");
-        var notes = document.getElementById("returnNotes").value || "設備皆正常歸還";
         
-        if(!date || !name || !phone || fileInput.files.length === 0) {
-            alert("請填寫所有欄位並上傳照片！");
+        if(!date || !name || !phone || fileInput.files.length === 0) { alert("請填寫所有欄位並上傳照片！"); return; }
+
+        var btn = document.getElementById("submitReturnBtn");
+        btn.disabled = true; btn.innerText = "照片上傳中 (不需轉檔，速度更快)...";
+
+        var file = fileInput.files[0];
+        // 產生獨一無二的檔名防止覆蓋，把空白替換掉避免網址出錯
+        var fileName = Date.now() + "_" + name + "_" + file.name.replace(/\s+/g, '_'); 
+
+        // 1. 上傳照片到 Supabase Storage (剛剛建的 return_photos 資料夾)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('return_photos')
+            .upload(fileName, file);
+
+        if (uploadError) {
+            alert("照片上傳失敗：" + uploadError.message);
+            btn.disabled = false; btn.innerText = "送出歸還通知";
             return;
         }
 
-        var btn = document.getElementById("submitReturnBtn");
-        btn.disabled = true; btn.innerText = "照片上傳與通知發送中 (需等候數秒)...";
+        // 2. 取得公開網址
+        const { data: publicUrlData } = supabase.storage
+            .from('return_photos')
+            .getPublicUrl(fileName);
 
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            var data = {
-                type: "return", returnDate: date, leaderName: name, 
-                leaderPhone: phone, notes: notes, photoBase64: e.target.result
-            };
-            fetch(scriptURL, { method: 'POST', body: JSON.stringify(data), mode: 'no-cors' })
-            .then(() => {
-                alert("已成功發送歸還通知並上傳照片！");
-                document.getElementById("returnForm").reset();
-                showSection('homeMenu');
-                btn.disabled = false; btn.innerText = "送出歸還通知";
-            });
-        };
-        reader.readAsDataURL(fileInput.files[0]);
+        // 3. 寫入歸還紀錄到資料庫
+        const { error: dbError } = await supabase.from('return_records').insert([{
+            return_date: date,
+            leader_name: name,
+            leader_phone: phone,
+            photo_url: publicUrlData.publicUrl,
+            notes: document.getElementById("returnNotes").value || "設備皆正常歸還"
+        }]);
+
+        if (dbError) { alert("資料寫入失敗：" + dbError.message); } 
+        else {
+            alert("已成功發送歸還通知並上傳照片！");
+            document.getElementById("returnForm").reset();
+            showSection('homeMenu');
+        }
+        btn.disabled = false; btn.innerText = "送出歸還通知";
     }
 </script>
 </body>
