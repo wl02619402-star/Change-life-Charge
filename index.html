@@ -23,7 +23,8 @@
         .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        /* 讓表格在手機上也可以左右滑動觀看 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
@@ -34,10 +35,8 @@
 <body>
 
 <div class="container">
-    <!-- 這裡加上了 onclick 事件與防止反白的 style，作為隱藏開關 -->
     <h2 onclick="secretAdminTrigger()" style="user-select: none; cursor: pointer;">🎄 聖誕餐會設備管理系統</h2>
 
-    <!-- 首頁選單 (移除了原本的管理員登入按鈕) -->
     <div id="homeMenu" class="home-menu">
         <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
         <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
@@ -128,9 +127,14 @@
         </div>
         
         <h4>📦 借用紀錄清單</h4>
-        <div style="overflow-x: auto;">
+        <!-- 加入了水平卷軸，避免欄位變多時破版 -->
+        <div style="overflow-x: auto; padding-bottom: 10px;">
             <table id="borrowTable">
-                <tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th></tr>
+                <tr>
+                    <th>日期</th><th>時間</th><th>場地</th><th>負責人</th>
+                    <!-- 新增的設備欄位 -->
+                    <th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th>
+                </tr>
             </table>
         </div>
 
@@ -156,7 +160,6 @@
 </div>
 
 <script>
-    // 已為你填妥 Supabase 專屬網址與金鑰 (並移除了會報錯的 /rest/v1/)
     const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
     
@@ -196,7 +199,6 @@
         }
     }
 
-    // 檢查是否有管理員登入身分
     async function checkAdminAccess() {
         const { data: { session } } = await db.auth.getSession();
         if (session) {
@@ -207,7 +209,6 @@
         }
     }
 
-    // 管理員登入
     async function adminLogin() {
         var email = document.getElementById('adminEmail').value;
         var password = document.getElementById('adminPassword').value;
@@ -223,20 +224,36 @@
         }
     }
 
-    // 管理員登出
     async function adminLogout() {
         await db.auth.signOut();
         alert("已登出管理員");
         showSection('homeMenu');
     }
 
-    // 載入後台資料
+    // 載入後台資料（已加入器材欄位與顯示優化）
     async function loadAdminData() {
         const { data: borrowData, error: borrowError } = await db.from('borrow_records').select('*').order('id', { ascending: false });
         if (!borrowError) {
-            var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th></tr>';
+            var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th></tr>';
             borrowData.forEach(item => {
-                bHtml += `<tr><td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td><td>${item.location}</td><td>${item.leader_info}</td></tr>`;
+                // 如果是 0 或無，替換成 "-"，讓畫面更乾淨
+                let vMa303 = (item.ma303 === "0" || !item.ma303) ? "-" : item.ma303;
+                let vMa707 = (item.ma707 === "0" || !item.ma707) ? "-" : item.ma707;
+                let vStand = (item.music_stand === "0" || !item.music_stand) ? "-" : item.music_stand;
+                let vPiano = (item.piano === "無" || !item.piano) ? "-" : item.piano;
+                let vNotes = (item.notes) ? item.notes : "-";
+
+                bHtml += `<tr>
+                    <td>${item.borrow_date}</td>
+                    <td>${item.start_time}-${item.end_time}</td>
+                    <td>${item.location}</td>
+                    <td>${item.leader_info}</td>
+                    <td style="text-align:center;">${vMa303}</td>
+                    <td style="text-align:center;">${vMa707}</td>
+                    <td style="text-align:center;">${vStand}</td>
+                    <td style="text-align:center;">${vPiano}</td>
+                    <td>${vNotes}</td>
+                </tr>`;
             });
             document.getElementById('borrowTable').innerHTML = bHtml;
         }
@@ -251,7 +268,6 @@
         }
     }
 
-    // 送出借用申請
     async function submitBorrow() {
         if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
         if (!document.getElementById("borrowDate").value || !document.getElementById("startTime").value || !document.getElementById("endTime").value || !document.getElementById("leaderInfo").value || !document.getElementById("location").value) {
@@ -289,7 +305,6 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    // 送出歸還單
     async function submitReturn() {
         var date = document.getElementById("returnDate").value;
         var name = document.getElementById("returnLeaderName").value;
@@ -335,7 +350,6 @@
         btn.disabled = false; btn.innerText = "送出歸還通知";
     }
 
-    // 隱藏的後台密門：連續點擊標題 5 下
     let clickCount = 0;
     let clickTimer = null;
 
