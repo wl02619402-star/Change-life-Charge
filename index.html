@@ -120,12 +120,12 @@
 </div>
 
 <script>
-    // 這裡已經幫你把 Supabase 的鑰匙設定好了！
-    const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
+    // 🚨🚨🚨 請在這裡填入你從 Supabase 複製的兩把鑰匙 🚨🚨🚨
+    const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg ';
     
-    // 初始化 Supabase
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 初始化 Supabase (已修正變數撞名 Bug)
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // 介面控制與防呆時間邏輯
     function showSection(sectionId) {
@@ -160,7 +160,7 @@
         }
     }
 
-    // 🚀 送出借用申請 (直連 Supabase)
+    // 🚀 送出借用申請
     async function submitBorrow() {
         if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
         if (!document.getElementById("borrowDate").value || !document.getElementById("startTime").value || !document.getElementById("endTime").value || !document.getElementById("leaderInfo").value || !document.getElementById("location").value) {
@@ -175,7 +175,7 @@
             techOption = document.querySelector('input[name="needTech"]:checked').value;
         }
 
-        const { error } = await supabase.from('borrow_records').insert([{
+        const { error } = await db.from('borrow_records').insert([{
             borrow_date: document.getElementById("borrowDate").value,
             start_time: document.getElementById("startTime").value,
             end_time: document.getElementById("endTime").value,
@@ -198,7 +198,7 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    // 📸 送出歸還單 (原檔上傳 Supabase Storage)
+    // 📸 送出歸還單
     async function submitReturn() {
         var date = document.getElementById("returnDate").value;
         var name = document.getElementById("returnLeaderName").value;
@@ -211,11 +211,10 @@
         btn.disabled = true; btn.innerText = "照片上傳中 (不需轉檔，速度更快)...";
 
         var file = fileInput.files[0];
-        // 產生獨一無二的檔名防止覆蓋，把空白替換掉避免網址出錯
-        var fileName = Date.now() + "_" + name + "_" + file.name.replace(/\s+/g, '_'); 
+        var fileName = Date.now() + "_" + name + "_" + file.name; 
 
-        // 1. 上傳照片到 Supabase Storage (剛剛建的 return_photos 資料夾)
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        // 1. 上傳照片到 Supabase
+        const { data: uploadData, error: uploadError } = await db.storage
             .from('return_photos')
             .upload(fileName, file);
 
@@ -226,12 +225,12 @@
         }
 
         // 2. 取得公開網址
-        const { data: publicUrlData } = supabase.storage
+        const { data: publicUrlData } = db.storage
             .from('return_photos')
             .getPublicUrl(fileName);
 
         // 3. 寫入歸還紀錄到資料庫
-        const { error: dbError } = await supabase.from('return_records').insert([{
+        const { error: dbError } = await db.from('return_records').insert([{
             return_date: date,
             leader_name: name,
             leader_phone: phone,
