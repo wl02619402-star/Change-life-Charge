@@ -4,30 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2025聖誕餐會 設備外借管理系統</title>
-    <!-- 匯入 Supabase 核心套件 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; }
         h2 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
-        .home-menu { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-        .btn-main { width: 100%; max-width: 280px; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
+        .home-menu { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        .btn-main { width: 100%; max-width: 280px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
         .btn-borrow { background-color: #3498db; color: white; }
-        .btn-borrow:hover { background-color: #2980b9; }
         .btn-return { background-color: #e67e22; color: white; }
-        .btn-return:hover { background-color: #d35400; }
-        .form-section { display: none; }
+        .btn-admin { background-color: #34495e; color: white; font-size: 14px; padding: 10px; max-width: 150px; margin-top: 30px; }
+        .form-section, .admin-section { display: none; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px; }
-        input[type="text"], input[type="date"], input[type="time"], input[type="file"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        input[type="text"], input[type="date"], input[type="time"], input[type="file"], input[type="password"], input[type="email"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
         .hidden { display: none; }
         .radio-group { display: flex; gap: 15px; align-items: center; margin-top: 5px; }
         .radio-group label { display: flex; align-items: center; font-weight: normal; font-size: 16px; margin: 0; cursor: pointer; }
-        .radio-group input[type="radio"] { width: 18px; height: 18px; margin-right: 8px; cursor: pointer; }
         .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        .btn-submit:hover { background-color: #2ecc71; }
         .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto; }
         .rules-link { color: #3498db; text-decoration: underline; cursor: pointer; font-weight: bold; }
@@ -38,9 +37,22 @@
 <div class="container">
     <h2>🎄 聖誕餐會設備管理系統</h2>
 
+    <!-- 首頁選單 -->
     <div id="homeMenu" class="home-menu">
         <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
         <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
+        <button class="btn-main btn-admin" onclick="checkAdminAccess()">🔒 管理員登入</button>
+    </div>
+
+    <!-- 管理員登入彈窗 -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; color: #34495e;">🔐 管理員身分驗證</h3>
+            <div class="form-group"><label>管理員信箱</label><input type="email" id="adminEmail" placeholder="admin@christmas.com"></div>
+            <div class="form-group"><label>密碼</label><input type="password" id="adminPassword"></div>
+            <button class="btn-submit" onclick="adminLogin()">登入後台</button>
+            <button class="btn-back" onclick="document.getElementById('loginModal').style.display='none'">取消</button>
+        </div>
     </div>
 
     <!-- 借用表單 -->
@@ -107,6 +119,31 @@
             <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
         </form>
     </div>
+
+    <!-- 後台管理面板 -->
+    <div id="adminSection" class="admin-section">
+        <h3 style="color: #34495e; text-align: center;">📊 設備借還後台管理</h3>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <button class="btn-back" style="width: 48%; margin:0;" onclick="loadAdminData()">🔄 重新整理資料</button>
+            <button class="btn-back" style="width: 48%; margin:0; background-color: #c0392b;" onclick="adminLogout()">登出管理員</button>
+        </div>
+        
+        <h4>📦 借用紀錄清單</h4>
+        <div style="overflow-x: auto;">
+            <table id="borrowTable">
+                <tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th></tr>
+            </table>
+        </div>
+
+        <h4 style="margin-top: 25px;">🔄 歸還紀錄清單</h4>
+        <div style="overflow-x: auto;">
+            <table id="returnTable">
+                <tr><th>日期</th><th>負責人</th><th>電話</th><th>照片</th></tr>
+            </table>
+        </div>
+
+        <button class="btn-back" style="margin-top: 25px;" onclick="showSection('homeMenu')">返回首頁</button>
+    </div>
 </div>
 
 <div id="rulesModal" class="modal">
@@ -120,18 +157,18 @@
 </div>
 
 <script>
-    // 已經幫你修正並填入正確的 Supabase 資訊
-    const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
+    // 🚨 請填入你的 Supabase 專屬鑰匙 🚨
+    const SUPABASE_URL = '請貼上你的_Project_URL';
+    const SUPABASE_ANON_KEY = '請貼上你的_anon_public_key';
     
-    // 初始化 Supabase
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 介面控制與防呆時間邏輯
     function showSection(sectionId) {
         document.getElementById('homeMenu').style.display = 'none';
         document.getElementById('borrowSection').style.display = 'none';
         document.getElementById('returnSection').style.display = 'none';
+        document.getElementById('adminSection').style.display = 'none';
+        
         if (sectionId === 'homeMenu') document.getElementById('homeMenu').style.display = 'flex';
         else document.getElementById(sectionId).style.display = 'block';
     }
@@ -160,7 +197,64 @@
         }
     }
 
-    // 🚀 送出借用申請
+    // 檢查是否有管理員登入身分
+    async function checkAdminAccess() {
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+            showSection('adminSection');
+            loadAdminData();
+        } else {
+            document.getElementById('loginModal').style.display = 'flex';
+        }
+    }
+
+    // 管理員登入
+    async function adminLogin() {
+        var email = document.getElementById('adminEmail').value;
+        var password = document.getElementById('adminPassword').value;
+
+        const { data, error } = await db.auth.signInWithPassword({ email: email, password: password });
+        if (error) {
+            alert("登入失敗：" + error.message);
+        } else {
+            document.getElementById('loginModal').style.display = 'none';
+            alert("管理員登入成功！");
+            showSection('adminSection');
+            loadAdminData();
+        }
+    }
+
+    // 管理員登出
+    async function adminLogout() {
+        await db.auth.signOut();
+        alert("已登出管理員");
+        showSection('homeMenu');
+    }
+
+    // 載入後台資料
+    async function loadAdminData() {
+        // 載入借用紀錄
+        const { data: borrowData, error: borrowError } = await db.from('borrow_records').select('*').order('id', { ascending: false });
+        if (!borrowError) {
+            var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th></tr>';
+            borrowData.forEach(item => {
+                bHtml += `<tr><td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td><td>${item.location}</td><td>${item.leader_info}</td></tr>`;
+            });
+            document.getElementById('borrowTable').innerHTML = bHtml;
+        }
+
+        // 載入歸還紀錄
+        const { data: returnData, error: returnError } = await db.from('return_records').select('*').order('id', { ascending: false });
+        if (!returnError) {
+            var rHtml = '<tr><th>日期</th><th>負責人</th><th>電話</th><th>照片</th></tr>';
+            returnData.forEach(item => {
+                rHtml += `<tr><td>${item.return_date}</td><td>${item.leader_name}</td><td>${item.leader_phone}</td><td><a href="${item.photo_url}" target="_blank">檢視照片</a></td></tr>`;
+            });
+            document.getElementById('returnTable').innerHTML = rHtml;
+        }
+    }
+
+    // 送出借用申請
     async function submitBorrow() {
         if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
         if (!document.getElementById("borrowDate").value || !document.getElementById("startTime").value || !document.getElementById("endTime").value || !document.getElementById("leaderInfo").value || !document.getElementById("location").value) {
@@ -198,7 +292,7 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    // 📸 送出歸還單
+    // 送出歸還單
     async function submitReturn() {
         var date = document.getElementById("returnDate").value;
         var name = document.getElementById("returnLeaderName").value;
@@ -208,12 +302,11 @@
         if(!date || !name || !phone || fileInput.files.length === 0) { alert("請填寫所有欄位並上傳照片！"); return; }
 
         var btn = document.getElementById("submitReturnBtn");
-        btn.disabled = true; btn.innerText = "照片上傳中 (不需轉檔，速度更快)...";
+        btn.disabled = true; btn.innerText = "照片上傳中...";
 
         var file = fileInput.files[0];
         var fileName = Date.now() + "_" + name + "_" + file.name; 
 
-        // 1. 上傳照片到 Supabase
         const { data: uploadData, error: uploadError } = await db.storage
             .from('return_photos')
             .upload(fileName, file);
@@ -224,12 +317,10 @@
             return;
         }
 
-        // 2. 取得公開網址
         const { data: publicUrlData } = db.storage
             .from('return_photos')
             .getPublicUrl(fileName);
 
-        // 3. 寫入歸還紀錄到資料庫
         const { error: dbError } = await db.from('return_records').insert([{
             return_date: date,
             leader_name: name,
