@@ -13,7 +13,6 @@
         .btn-main { width: 100%; max-width: 280px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
         .btn-borrow { background-color: #3498db; color: white; }
         .btn-return { background-color: #e67e22; color: white; }
-        .btn-admin { background-color: #34495e; color: white; font-size: 14px; padding: 10px; max-width: 150px; margin-top: 30px; }
         .form-section, .admin-section { display: none; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px; }
@@ -35,13 +34,13 @@
 <body>
 
 <div class="container">
-    <h2>🎄 聖誕餐會設備管理系統</h2>
+    <!-- 這裡加上了 onclick 事件與防止反白的 style，作為隱藏開關 -->
+    <h2 onclick="secretAdminTrigger()" style="user-select: none; cursor: pointer;">🎄 聖誕餐會設備管理系統</h2>
 
-    <!-- 首頁選單 -->
+    <!-- 首頁選單 (移除了原本的管理員登入按鈕) -->
     <div id="homeMenu" class="home-menu">
         <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
         <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
-        <button class="btn-main btn-admin" onclick="checkAdminAccess()">🔒 管理員登入</button>
     </div>
 
     <!-- 管理員登入彈窗 -->
@@ -157,9 +156,9 @@
 </div>
 
 <script>
-    // 🚨 請填入你的 Supabase 專屬鑰匙 🚨
-    const SUPABASE_URL = '請貼上你的_Project_URL';
-    const SUPABASE_ANON_KEY = '請貼上你的_anon_public_key';
+    // 已為你填妥 Supabase 專屬網址與金鑰 (並移除了會報錯的 /rest/v1/)
+    const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
     
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -233,7 +232,6 @@
 
     // 載入後台資料
     async function loadAdminData() {
-        // 載入借用紀錄
         const { data: borrowData, error: borrowError } = await db.from('borrow_records').select('*').order('id', { ascending: false });
         if (!borrowError) {
             var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th></tr>';
@@ -243,7 +241,6 @@
             document.getElementById('borrowTable').innerHTML = bHtml;
         }
 
-        // 載入歸還紀錄
         const { data: returnData, error: returnError } = await db.from('return_records').select('*').order('id', { ascending: false });
         if (!returnError) {
             var rHtml = '<tr><th>日期</th><th>負責人</th><th>電話</th><th>照片</th></tr>';
@@ -336,6 +333,24 @@
             showSection('homeMenu');
         }
         btn.disabled = false; btn.innerText = "送出歸還通知";
+    }
+
+    // 隱藏的後台密門：連續點擊標題 5 下
+    let clickCount = 0;
+    let clickTimer = null;
+
+    function secretAdminTrigger() {
+        clickCount++;
+        
+        if (clickCount >= 5) {
+            checkAdminAccess();
+            clickCount = 0; 
+        }
+
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => {
+            clickCount = 0;
+        }, 2000);
     }
 </script>
 </body>
