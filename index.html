@@ -41,7 +41,7 @@
 
     <div id="homeMenu" class="home-menu">
         <button class="btn-main btn-borrow" onclick="showSection('rulesSection')">我要借設備</button>
-        <button class="btn-main btn-return" onclick="showSection('returnSection'); loadUnreturnedOptions();">我要歸還設備</button>
+        <button class="btn-main btn-return" onclick="showSection('returnSection'); resetReturnForm();">我要歸還設備</button>
         <button class="btn-main btn-query" onclick="showSection('querySection')">查詢我的借用狀態</button>
     </div>
 
@@ -119,7 +119,6 @@
             <div class="form-group" id="pianoSection"><label>鋼琴 (教會外場地禁止借用)</label><label style="font-weight: normal; font-size: 16px;"><input type="checkbox" id="piano"> 需要借用鋼琴</label></div>
             <div class="form-group"><label>其他 (備註)</label><input type="text" id="notes" placeholder="無"></div>
 
-            <!-- 遺失的同意守則選項已補回 -->
             <div class="form-group" style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
                 <label style="font-weight: normal; color: #d9534f; font-size: 15px; display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="agreeRules" required> 
@@ -132,19 +131,33 @@
         </form>
     </div>
 
+    <!-- 🔥 歸還表單大改版：電話搜尋 ➔ 選擇 ➔ 上傳 -->
     <div id="returnSection" class="form-section">
         <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
-        <form id="returnForm">
-            <div class="form-group">
-                <label>選擇尚未歸還的借用紀錄</label>
-                <select id="returnItemSelect" required><option value="">讀取中...</option></select>
+        
+        <div class="form-group" id="returnSearchBlock">
+            <label>請輸入借用時填寫的聯絡電話</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="returnSearchPhone" placeholder="例：0912345678" style="flex: 1;">
+                <button type="button" class="btn-submit" style="margin-top: 0; width: auto; padding: 12px 20px;" onclick="searchUnreturned()">搜尋</button>
             </div>
-            <div class="form-group"><label>實際歸還日期</label><input type="date" id="returnDate" required></div>
+        </div>
+
+        <form id="returnForm" class="hidden">
+            <hr>
+            <div class="form-group">
+                <label style="color: #c0392b;">請選擇要歸還的紀錄：</label>
+                <!-- 搜尋出來的未歸還清單會顯示在這裡 -->
+                <div id="unreturnedList" style="background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #ddd; max-height: 150px; overflow-y: auto;">
+                </div>
+            </div>
+            
             <div class="form-group"><label>歸還設備照片上傳</label><input type="file" id="returnPhoto" accept="image/*" required></div>
             <div class="form-group"><label>歸還狀態 (如有損壞請註明)</label><input type="text" id="returnNotes" placeholder="設備皆正常歸還"></div>
+            
             <button type="button" class="btn-submit" id="submitReturnBtn" onclick="submitReturn()">送出歸還通知</button>
-            <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
         </form>
+        <button type="button" class="btn-back" onclick="showSection('homeMenu'); resetReturnForm();">返回首頁</button>
     </div>
 
     <div id="adminSection" class="admin-section">
@@ -350,18 +363,6 @@
         btn.disabled = false; btn.innerText = "確認分配";
     }
 
-    async function loadUnreturnedOptions() {
-        let select = document.getElementById("returnItemSelect");
-        select.innerHTML = '<option value="">載入中...</option>';
-        try {
-            const { data } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
-            if (data) {
-                select.innerHTML = data.length === 0 ? '<option value="">目前沒有未歸還的設備</option>' : '<option value="">請選擇要歸還的項目...</option>';
-                data.forEach(item => select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`);
-            }
-        } catch(e) { select.innerHTML = '<option value="">載入失敗</option>'; }
-    }
-
     async function loadAdminData() {
         let weekFilter = document.getElementById("adminWeekFilter").value;
         const { data: records, error } = await db.from('borrow_records').select('*').order('borrow_date', { ascending: false });
@@ -493,14 +494,57 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
+    // 🔥 歸還系統新功能：重置表單
+    function resetReturnForm() {
+        document.getElementById('returnSearchPhone').value = '';
+        document.getElementById('returnForm').classList.add('hidden');
+        document.getElementById('returnForm').reset();
+    }
+
+    // 🔥 歸還系統新功能：用電話尋找未歸還清單
+    async function searchUnreturned() {
+        var phone = document.getElementById('returnSearchPhone').value;
+        if(!phone) { alert('請輸入借用時填寫的電話號碼'); return; }
+        
+        let listContainer = document.getElementById('unreturnedList');
+        listContainer.innerHTML = "搜尋中...";
+        document.getElementById('returnForm').classList.remove('hidden');
+
+        try {
+            const { data, error } = await db.from('borrow_records').select('*').eq('leader_phone', phone).eq('is_returned', false).order('borrow_date', { ascending: true });
+            if(error) { listContainer.innerHTML = "查詢失敗"; return; }
+            if(data.length === 0) { 
+                listContainer.innerHTML = "找不到此電話的「未歸還」紀錄。"; 
+                document.getElementById('submitReturnBtn').style.display = 'none';
+                return; 
+            }
+
+            document.getElementById('submitReturnBtn').style.display = 'block';
+            let html = '';
+            data.forEach((item, index) => {
+                let checked = index === 0 ? 'checked' : ''; // 預設勾選第一筆
+                html += `<label style="display: block; margin-bottom: 10px; cursor: pointer; border-bottom: 1px dashed #eee; padding-bottom: 8px;">
+                    <input type="radio" name="returnRecordId" value="${item.id}" ${checked} style="margin-right: 8px;"> 
+                    ${item.borrow_date} | ${item.location} (${item.start_time}-${item.end_time})
+                </label>`;
+            });
+            listContainer.innerHTML = html;
+        } catch(e) {
+            listContainer.innerHTML = "發生錯誤";
+        }
+    }
+
+    // 🔥 歸還系統新功能：送出表單並自動帶入當天日期
     async function submitReturn() {
         var btn = document.getElementById("submitReturnBtn");
         try {
-            var recordId = document.getElementById("returnItemSelect").value;
-            var returnDate = document.getElementById("returnDate").value;
-            var fileInput = document.getElementById("returnPhoto");
+            var selectedRadio = document.querySelector('input[name="returnRecordId"]:checked');
+            if (!selectedRadio) { alert("請先搜尋並選擇要歸還的紀錄！"); return; }
             
-            if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請填寫並上傳照片！"); return; }
+            var recordId = selectedRadio.value;
+            var fileInput = document.getElementById("returnPhoto");
+            if(fileInput.files.length === 0) { alert("請上傳歸還照片！"); return; }
+            
             btn.disabled = true; btn.innerText = "處理中...";
 
             var file = fileInput.files[0];
@@ -509,11 +553,23 @@
             if (uploadError) { alert("照片上傳失敗"); btn.disabled = false; btn.innerText = "送出歸還"; return; }
 
             const { data: urlData } = db.storage.from('return_photos').getPublicUrl(fileName);
+            
+            // 自動產生今天的日期 (台灣時區 YYYY-MM-DD)
+            let todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+
             const { error: dbError } = await db.from('borrow_records').update({
-                is_returned: true, return_date: returnDate, return_photo_url: urlData.publicUrl, return_notes: document.getElementById("returnNotes").value
+                is_returned: true, 
+                return_date: todayStr, 
+                return_photo_url: urlData.publicUrl, 
+                return_notes: document.getElementById("returnNotes").value
             }).eq('id', recordId);
 
-            if (dbError) { alert("寫入失敗"); } else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
+            if (dbError) { alert("寫入失敗"); } 
+            else { 
+                alert("歸還成功！"); 
+                resetReturnForm();
+                showSection('homeMenu'); 
+            }
         } catch(e) {
             alert("發生例外錯誤：" + e.message);
         }
