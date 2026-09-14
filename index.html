@@ -131,7 +131,6 @@
         </form>
     </div>
 
-    <!-- 🔥 歸還表單大改版：電話搜尋 ➔ 選擇 ➔ 上傳 -->
     <div id="returnSection" class="form-section">
         <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
         
@@ -147,7 +146,6 @@
             <hr>
             <div class="form-group">
                 <label style="color: #c0392b;">請選擇要歸還的紀錄：</label>
-                <!-- 搜尋出來的未歸還清單會顯示在這裡 -->
                 <div id="unreturnedList" style="background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #ddd; max-height: 150px; overflow-y: auto;">
                 </div>
             </div>
@@ -368,8 +366,8 @@
         const { data: records, error } = await db.from('borrow_records').select('*').order('borrow_date', { ascending: false });
         if (error) return;
 
-        let unreturnedHtml = '<tr><th>日期/場地/人</th><th>借出設備</th><th>📍 領取照片</th><th>操作</th></tr>';
-        let returnedHtml = '<tr><th>借出與歸還日期</th><th>場地/人</th><th>狀態</th><th>操作</th></tr>';
+        let unreturnedHtml = '<tr><th>日期/場地/人/電話</th><th>借出設備</th><th>📍 領取照片</th><th>操作</th></tr>';
+        let returnedHtml = '<tr><th>借出與歸還日期</th><th>場地/人/電話</th><th>狀態</th><th>操作</th></tr>';
 
         records.forEach(item => {
             if (weekFilter !== '' && item.borrow_date) {
@@ -411,13 +409,13 @@
                     : `<label class="upload-label">上傳照片<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>`;
 
                 unreturnedHtml += `<tr>
-                    <td>${item.borrow_date}<br>${item.start_time}-${item.end_time}<br>${item.location}<br>${item.leader_name}</td>
+                    <td>${item.borrow_date}<br>${item.start_time}-${item.end_time}<br>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
                     <td style="min-width:140px;">${eq}</td><td>${photoAction}</td>
                     <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
                 </tr>`;
             } else {
                 returnedHtml += `<tr>
-                    <td>出: ${item.borrow_date}<br>還: ${item.return_date}</td><td>${item.location}<br>${item.leader_name}</td>
+                    <td>出: ${item.borrow_date}<br>還: ${item.return_date}</td><td>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
                     <td>${item.return_notes || '正常'}<br><a href="${item.return_photo_url}" target="_blank">📸 歸還照</a></td>
                     <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
                 </tr>`;
@@ -494,14 +492,12 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    // 🔥 歸還系統新功能：重置表單
     function resetReturnForm() {
         document.getElementById('returnSearchPhone').value = '';
         document.getElementById('returnForm').classList.add('hidden');
         document.getElementById('returnForm').reset();
     }
 
-    // 🔥 歸還系統新功能：用電話尋找未歸還清單
     async function searchUnreturned() {
         var phone = document.getElementById('returnSearchPhone').value;
         if(!phone) { alert('請輸入借用時填寫的電話號碼'); return; }
@@ -522,7 +518,7 @@
             document.getElementById('submitReturnBtn').style.display = 'block';
             let html = '';
             data.forEach((item, index) => {
-                let checked = index === 0 ? 'checked' : ''; // 預設勾選第一筆
+                let checked = index === 0 ? 'checked' : '';
                 html += `<label style="display: block; margin-bottom: 10px; cursor: pointer; border-bottom: 1px dashed #eee; padding-bottom: 8px;">
                     <input type="radio" name="returnRecordId" value="${item.id}" ${checked} style="margin-right: 8px;"> 
                     ${item.borrow_date} | ${item.location} (${item.start_time}-${item.end_time})
@@ -534,7 +530,6 @@
         }
     }
 
-    // 🔥 歸還系統新功能：送出表單並自動帶入當天日期
     async function submitReturn() {
         var btn = document.getElementById("submitReturnBtn");
         try {
@@ -553,8 +548,6 @@
             if (uploadError) { alert("照片上傳失敗"); btn.disabled = false; btn.innerText = "送出歸還"; return; }
 
             const { data: urlData } = db.storage.from('return_photos').getPublicUrl(fileName);
-            
-            // 自動產生今天的日期 (台灣時區 YYYY-MM-DD)
             let todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
 
             const { error: dbError } = await db.from('borrow_records').update({
