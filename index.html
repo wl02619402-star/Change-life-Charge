@@ -198,30 +198,36 @@
         if(!phone) { alert('請輸入電話號碼'); return; }
         document.getElementById('queryResult').innerHTML = "查詢中...";
 
-        const { data, error } = await db.from('borrow_records').select('*').eq('leader_phone', phone).order('borrow_date', { ascending: false });
-        if(error) { document.getElementById('queryResult').innerHTML = "查詢失敗"; return; }
-        if(data.length === 0) { document.getElementById('queryResult').innerHTML = "找不到此電話的借用紀錄。"; return; }
+        try {
+            const { data, error } = await db.from('borrow_records').select('*').eq('leader_phone', phone).order('borrow_date', { ascending: false });
+            if(error) { document.getElementById('queryResult').innerHTML = "查詢失敗"; return; }
+            if(data.length === 0) { document.getElementById('queryResult').innerHTML = "找不到此電話的借用紀錄。"; return; }
 
-        let html = '<table><tr><th>日期時間</th><th>場地</th><th>設備</th><th>狀態與領取位置</th></tr>';
-        data.forEach(item => {
-            let status = item.is_returned ? "✅ 已歸還" : "⚠️ 未歸還";
-            
-            let reqQty = parseInt(item.ma303) || 0;
-            let ma303Status = '無';
-            if (reqQty > 0) {
-                ma303Status = item.ma303_assigned ? `<span style="color:#27ae60; font-weight:bold;">${item.ma303_assigned}</span>` : `已申請 ${reqQty} 台<br><span style="color:#e74c3c;">(等待管理員分配中)</span>`;
-            }
-            
-            let eq = `MA303: ${ma303Status}<br>MA707: ${item.ma707||0}<br>譜架: ${item.music_stand||0}<br>鋼琴: ${item.piano}`;
-            let pickup = "";
-            if (!item.is_returned) {
-                if (item.pickup_photo_url) { pickup = `<br><a href="${item.pickup_photo_url}" target="_blank" style="color:#e67e22; font-weight:bold;">📍 查看領取照片</a>`; } 
-                else { pickup = `<br><span style="color:#95a5a6;">(管理員尚未上傳位置)</span>`; }
-            }
-            html += `<tr><td>${item.borrow_date}<br>${item.start_time}-${item.end_time}</td><td>${item.location}</td><td style="font-size:11px;">${eq}</td><td>${status}${pickup}</td></tr>`;
-        });
-        html += '</table>';
-        document.getElementById('queryResult').innerHTML = html;
+            let html = '<table><tr><th>日期時間</th><th>場地</th><th>設備</th><th>狀態與領取位置</th></tr>';
+            data.forEach(item => {
+                let status = item.is_returned ? "✅ 已歸還" : "⚠️ 未歸還";
+                let reqQty = parseInt(item.ma303) || 0;
+                let ma303Status = '無';
+                
+                if (reqQty > 0) {
+                    // 自動兼容舊資料，將 A機 轉化為 編號A
+                    let assignedClean = item.ma303_assigned ? item.ma303_assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C') : '';
+                    ma303Status = assignedClean ? `<span style="color:#27ae60; font-weight:bold;">${assignedClean}</span>` : `已申請 ${reqQty} 台<br><span style="color:#e74c3c;">(等待管理員分配中)</span>`;
+                }
+                
+                let eq = `MA303: ${ma303Status}<br>MA707: ${item.ma707||0}<br>譜架: ${item.music_stand||0}<br>鋼琴: ${item.piano}`;
+                let pickup = "";
+                if (!item.is_returned) {
+                    if (item.pickup_photo_url) { pickup = `<br><a href="${item.pickup_photo_url}" target="_blank" style="color:#e67e22; font-weight:bold;">📍 查看領取照片</a>`; } 
+                    else { pickup = `<br><span style="color:#95a5a6;">(管理員尚未上傳位置)</span>`; }
+                }
+                html += `<tr><td>${item.borrow_date}<br>${item.start_time}-${item.end_time}</td><td>${item.location}</td><td style="font-size:11px;">${eq}</td><td>${status}${pickup}</td></tr>`;
+            });
+            html += '</table>';
+            document.getElementById('queryResult').innerHTML = html;
+        } catch (e) {
+            document.getElementById('queryResult').innerHTML = "發生系統錯誤，請稍後再試。";
+        }
     }
 
     async function checkAdminAccess() {
@@ -253,20 +259,31 @@
         var fileName = Date.now() + "_pickup_" + file.name; 
         alert("照片上傳中，請稍候...");
 
-        const { error: uploadError } = await db.storage.from('pickup_photos').upload(fileName, file);
-        if (uploadError) { alert("上傳失敗：" + uploadError.message); return; }
+        try {
+            const { error: uploadError } = await db.storage.from('pickup_photos').upload(fileName, file);
+            if (uploadError) { alert("上傳失敗：" + uploadError.message); return; }
 
-        const { data: urlData } = db.storage.from('pickup_photos').getPublicUrl(fileName);
-        await db.from('borrow_records').update({ pickup_photo_url: urlData.publicUrl }).eq('id', id);
-        alert("領取照片上傳成功！"); loadAdminData();
+            const { data: urlData } = db.storage.from('pickup_photos').getPublicUrl(fileName);
+            await db.from('borrow_records').update({ pickup_photo_url: urlData.publicUrl }).eq('id', id);
+            alert("領取照片上傳成功！"); loadAdminData();
+        } catch (e) {
+            alert("系統錯誤：" + e.message);
+        }
     }
 
-    // 🔥 管理員分配 MA303 防呆邏輯
+    // 🔥 重新分配 MA303 (一鍵清除目前分配狀態)
+    async function editMa303(id) {
+        if(confirm("確定要清除並重新分配型號嗎？")) {
+            await db.from('borrow_records').update({ ma303_assigned: null }).eq('id', id);
+            loadAdminData();
+        }
+    }
+
     async function assignMa303(id, date, start, end, reqQty) {
         let selected = [];
-        if(document.getElementById(`ma303_A_${id}`).checked) selected.push("A機");
-        if(document.getElementById(`ma303_B_${id}`).checked) selected.push("B機");
-        if(document.getElementById(`ma303_C_${id}`).checked) selected.push("C機");
+        if(document.getElementById(`ma303_A_${id}`).checked) selected.push("編號A");
+        if(document.getElementById(`ma303_B_${id}`).checked) selected.push("編號B");
+        if(document.getElementById(`ma303_C_${id}`).checked) selected.push("編號C");
         
         if (selected.length !== reqQty) {
             alert(`該小組申請了 ${reqQty} 台，您目前勾選了 ${selected.length} 台，請確認數量相符！`);
@@ -274,47 +291,55 @@
         }
 
         var btn = document.getElementById(`btn_assign_${id}`);
-        btn.innerText = "檢查與儲存中...";
+        btn.innerText = "儲存中...";
         btn.disabled = true;
         
-        let startHour = parseInt(start.split(':')[0], 10);
-        let endHour = parseInt(end.split(':')[0], 10);
-        
-        const { data: records, error } = await db.from('borrow_records').select('*').eq('borrow_date', date).neq('id', id);
-        if (error) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "確認分配"; return; }
-        
-        for (let h = startHour; h < endHour; h++) {
-            let usedThisHour = [];
-            for (let rec of records) {
-                let rStart = parseInt(rec.start_time.split(':')[0], 10);
-                let rEnd = parseInt(rec.end_time.split(':')[0], 10);
-                if (rStart <= h && rEnd > h && rec.ma303_assigned) {
-                    usedThisHour.push(...rec.ma303_assigned.split(', '));
+        try {
+            let startHour = parseInt(start.split(':')[0], 10);
+            let endHour = parseInt(end.split(':')[0], 10);
+            
+            const { data: records, error } = await db.from('borrow_records').select('*').eq('borrow_date', date).neq('id', id);
+            if (error) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "確認分配"; return; }
+            
+            for (let h = startHour; h < endHour; h++) {
+                let usedThisHour = [];
+                for (let rec of records) {
+                    if (!rec.start_time || !rec.end_time) continue;
+                    let rStart = parseInt(rec.start_time.split(':')[0], 10);
+                    let rEnd = parseInt(rec.end_time.split(':')[0], 10);
+                    if (rStart <= h && rEnd > h && rec.ma303_assigned) {
+                        let cleanAssigned = rec.ma303_assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C');
+                        usedThisHour.push(...cleanAssigned.split(', '));
+                    }
+                }
+                for (let sel of selected) {
+                    if (usedThisHour.includes(sel)) {
+                        alert(`⛔ 衝突！${h}:00-${h+1}:00 的「${sel}」已經分配給其他小組了！\n請選擇其他型號。`);
+                        btn.disabled = false; btn.innerText = "確認分配";
+                        return;
+                    }
                 }
             }
-            for (let sel of selected) {
-                if (usedThisHour.includes(sel)) {
-                    alert(`⛔ 衝突！${h}:00-${h+1}:00 的「${sel}」已經分配給其他小組了！\n請選擇其他型號。`);
-                    btn.disabled = false; btn.innerText = "確認分配";
-                    return;
-                }
-            }
+            
+            const { error: updateError } = await db.from('borrow_records').update({ ma303_assigned: selected.join(', ') }).eq('id', id);
+            if (updateError) { alert("分配失敗：" + updateError.message); } 
+            else { alert("分配成功！"); loadAdminData(); }
+        } catch(e) {
+            alert("發生錯誤：" + e.message);
         }
-        
-        const { error: updateError } = await db.from('borrow_records').update({ ma303_assigned: selected.join(', ') }).eq('id', id);
-        if (updateError) { alert("分配失敗：" + updateError.message); } 
-        else { alert("分配成功！"); loadAdminData(); }
         btn.disabled = false; btn.innerText = "確認分配";
     }
 
     async function loadUnreturnedOptions() {
         let select = document.getElementById("returnItemSelect");
         select.innerHTML = '<option value="">載入中...</option>';
-        const { data } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
-        if (data) {
-            select.innerHTML = data.length === 0 ? '<option value="">目前沒有未歸還的設備</option>' : '<option value="">請選擇要歸還的項目...</option>';
-            data.forEach(item => select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`);
-        }
+        try {
+            const { data } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
+            if (data) {
+                select.innerHTML = data.length === 0 ? '<option value="">目前沒有未歸還的設備</option>' : '<option value="">請選擇要歸還的項目...</option>';
+                data.forEach(item => select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`);
+            }
+        } catch(e) { select.innerHTML = '<option value="">載入失敗</option>'; }
     }
 
     async function loadAdminData() {
@@ -343,16 +368,22 @@
                 let ma303AdminUI = '無';
                 if (reqQty > 0) {
                     let assigned = item.ma303_assigned || '';
-                    let cA = assigned.includes('A機') ? 'checked' : '';
-                    let cB = assigned.includes('B機') ? 'checked' : '';
-                    let cC = assigned.includes('C機') ? 'checked' : '';
-                    ma303AdminUI = `<div style="font-size:11px; background:#fff; padding:5px; border-radius:4px; border:1px solid #ddd; display:inline-block; margin-top:2px;">
-                        申請 <b>${reqQty}</b> 台<br>
-                        <label><input type="checkbox" id="ma303_A_${item.id}" value="A機" ${cA}>A</label>
-                        <label><input type="checkbox" id="ma303_B_${item.id}" value="B機" ${cB}>B</label>
-                        <label><input type="checkbox" id="ma303_C_${item.id}" value="C機" ${cC}>C</label><br>
-                        <button id="btn_assign_${item.id}" onclick="assignMa303(${item.id}, '${item.borrow_date}', '${item.start_time}', '${item.end_time}', ${reqQty})" style="margin-top:4px; cursor:pointer;">確認分配</button>
-                    </div>`;
+                    assigned = assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C');
+                    
+                    if (assigned) {
+                        // 分配完成後，只顯示乾淨的文字與重設按鈕
+                        ma303AdminUI = `<span style="color:#27ae60; font-weight:bold;">${assigned}</span><br>
+                        <button onclick="editMa303(${item.id})" style="font-size:11px; padding:2px 6px; margin-top:4px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">重新分配</button>`;
+                    } else {
+                        // 尚未分配時，顯示核取方塊
+                        ma303AdminUI = `<div style="font-size:11px; background:#fff; padding:5px; border-radius:4px; border:1px solid #ddd; display:inline-block; margin-top:2px;">
+                            申請 <b>${reqQty}</b> 台<br>
+                            <label><input type="checkbox" id="ma303_A_${item.id}" value="編號A">A</label>
+                            <label><input type="checkbox" id="ma303_B_${item.id}" value="編號B">B</label>
+                            <label><input type="checkbox" id="ma303_C_${item.id}" value="編號C">C</label><br>
+                            <button id="btn_assign_${item.id}" onclick="assignMa303(${item.id}, '${item.borrow_date}', '${item.start_time}', '${item.end_time}', ${reqQty})" style="margin-top:4px; cursor:pointer; font-size:11px; background:#34495e; color:white; border:none; padding:3px 6px; border-radius:3px;">確認分配</button>
+                        </div>`;
+                    }
                 }
 
                 let eq = `MA303: ${ma303AdminUI}<br>MA707: ${item.ma707||0}<br>譜架: ${item.music_stand||0}<br>鋼琴: ${item.piano}`;
@@ -378,86 +409,96 @@
     }
 
     async function submitBorrow() {
-        if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
-        
-        var date = document.getElementById("borrowDate").value;
-        var startTime = document.getElementById("startTime").value;
-        var endTime = document.getElementById("endTime").value;
-        var loc = document.getElementById("location").value;
-        var name = document.getElementById("leaderName").value;
-        var phone = document.getElementById("leaderPhone").value;
-
-        if (!date || !startTime || !endTime || !name || !phone || !loc) { alert("請填寫所有必填欄位！"); return; }
-
-        var startHour = parseInt(startTime.split(':')[0], 10);
-        var endHour = parseInt(endTime.split(':')[0], 10);
-        if (startHour >= endHour) { alert("歸還時間必須晚於借用時間！"); return; }
-
-        var reqMa303 = parseInt(document.getElementById("ma303").value) || 0;
-        var reqMa707 = parseInt(document.getElementById("ma707").value) || 0;
-        var reqStand = parseInt(document.getElementById("musicStand").value) || 0;
-        var reqPiano = document.getElementById("piano").checked;
-
         var btn = document.getElementById("submitBorrowBtn");
-        btn.disabled = true; btn.innerText = "檢查時段與設備狀態中...";
+        try {
+            if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
+            
+            var date = document.getElementById("borrowDate").value;
+            var startTime = document.getElementById("startTime").value;
+            var endTime = document.getElementById("endTime").value;
+            var loc = document.getElementById("location").value;
+            var name = document.getElementById("leaderName").value;
+            var phone = document.getElementById("leaderPhone").value;
 
-        const { data: records, error: fetchError } = await db.from('borrow_records').select('*').eq('borrow_date', date);
-        if (fetchError) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+            if (!date || !startTime || !endTime || !name || !phone || !loc) { alert("請填寫所有必填欄位！"); return; }
 
-        for (let h = startHour; h < endHour; h++) {
-            let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
-            for (let record of records) {
-                let recStart = parseInt(record.start_time.split(':')[0], 10);
-                let recEnd = parseInt(record.end_time.split(':')[0], 10);
-                if (recStart <= h && recEnd > h) {
-                    if (record.location === loc) { alert(`⛔ ${h}:00-${h+1}:00「${loc}」已被預約！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
-                    usedMa303 += parseInt(record.ma303) || 0;
-                    usedMa707 += parseInt(record.ma707) || 0;
-                    usedStand += parseInt(record.music_stand) || 0;
-                    if (record.piano === "是") usedPiano = true;
+            var startHour = parseInt(startTime.split(':')[0], 10);
+            var endHour = parseInt(endTime.split(':')[0], 10);
+            if (startHour >= endHour) { alert("歸還時間必須晚於借用時間！"); return; }
+
+            var reqMa303 = parseInt(document.getElementById("ma303").value) || 0;
+            var reqMa707 = parseInt(document.getElementById("ma707").value) || 0;
+            var reqStand = parseInt(document.getElementById("musicStand").value) || 0;
+            var reqPiano = document.getElementById("piano").checked;
+
+            btn.disabled = true; btn.innerText = "檢查時段與設備狀態中...";
+
+            const { data: records, error: fetchError } = await db.from('borrow_records').select('*').eq('borrow_date', date);
+            if (fetchError) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+
+            for (let h = startHour; h < endHour; h++) {
+                let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
+                for (let record of records) {
+                    if (!record.start_time || !record.end_time) continue; // 跳過錯誤舊資料防當機
+                    let recStart = parseInt(record.start_time.split(':')[0], 10);
+                    let recEnd = parseInt(record.end_time.split(':')[0], 10);
+                    if (recStart <= h && recEnd > h) {
+                        if (record.location === loc) { alert(`⛔ ${h}:00-${h+1}:00「${loc}」已被預約！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+                        usedMa303 += parseInt(record.ma303) || 0;
+                        usedMa707 += parseInt(record.ma707) || 0;
+                        usedStand += parseInt(record.music_stand) || 0;
+                        if (record.piano === "是") usedPiano = true;
+                    }
                 }
+                if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) { alert(`⛔ ${h}:00-${h+1}:00 MA303 總庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+                if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) { alert(`⛔ ${h}:00-${h+1}:00 MA707 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+                if (reqStand > 0 && (reqStand + usedStand > 6)) { alert(`⛔ ${h}:00-${h+1}:00 譜架 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+                if (reqPiano && usedPiano) { alert(`⛔ ${h}:00-${h+1}:00 鋼琴 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
             }
-            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) { alert(`⛔ ${h}:00-${h+1}:00 MA303 總庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
-            if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) { alert(`⛔ ${h}:00-${h+1}:00 MA707 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
-            if (reqStand > 0 && (reqStand + usedStand > 6)) { alert(`⛔ ${h}:00-${h+1}:00 譜架 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
-            if (reqPiano && usedPiano) { alert(`⛔ ${h}:00-${h+1}:00 鋼琴 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+
+            btn.innerText = "資料秒速傳送中...";
+            let techNode = document.querySelector('input[name="needTech"]:checked');
+            var techOption = (loc === "兒主" || loc === "幼主") && techNode ? techNode.value : "否";
+
+            const { error } = await db.from('borrow_records').insert([{
+                borrow_date: date, start_time: startTime, end_time: endTime, location: loc,
+                leader_name: name, leader_phone: phone, need_tech: techOption,
+                ma303: reqMa303.toString(), ma707: reqMa707.toString(),
+                piano: reqPiano ? "是" : "無", music_stand: reqStand.toString(), notes: document.getElementById("notes").value
+            }]);
+
+            if (error) { alert("發生錯誤：" + error.message); } 
+            else { alert("申請成功！"); document.getElementById("borrowForm").reset(); checkRules(); showSection('homeMenu'); }
+        } catch (e) {
+            alert("發生例外錯誤，請檢查資料或重新載入網頁：" + e.message);
         }
-
-        btn.innerText = "資料秒速傳送中...";
-        var techOption = (loc === "兒主" || loc === "幼主") ? document.querySelector('input[name="needTech"]:checked').value : "否";
-
-        const { error } = await db.from('borrow_records').insert([{
-            borrow_date: date, start_time: startTime, end_time: endTime, location: loc,
-            leader_name: name, leader_phone: phone, need_tech: techOption,
-            ma303: reqMa303.toString(), ma707: reqMa707.toString(),
-            piano: reqPiano ? "是" : "無", music_stand: reqStand.toString(), notes: document.getElementById("notes").value
-        }]);
-
-        if (error) { alert("發生錯誤：" + error.message); } 
-        else { alert("申請成功！"); document.getElementById("borrowForm").reset(); checkRules(); showSection('homeMenu'); }
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
     async function submitReturn() {
-        var recordId = document.getElementById("returnItemSelect").value;
-        var returnDate = document.getElementById("returnDate").value;
-        var fileInput = document.getElementById("returnPhoto");
-        
-        if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請填寫並上傳照片！"); return; }
         var btn = document.getElementById("submitReturnBtn");
-        btn.disabled = true; btn.innerText = "處理中...";
+        try {
+            var recordId = document.getElementById("returnItemSelect").value;
+            var returnDate = document.getElementById("returnDate").value;
+            var fileInput = document.getElementById("returnPhoto");
+            
+            if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請填寫並上傳照片！"); return; }
+            btn.disabled = true; btn.innerText = "處理中...";
 
-        var file = fileInput.files[0];
-        var fileName = Date.now() + "_return_" + file.name; 
-        const { error: uploadError } = await db.storage.from('return_photos').upload(fileName, file);
-        if (uploadError) { alert("照片上傳失敗"); btn.disabled = false; btn.innerText = "送出歸還"; return; }
+            var file = fileInput.files[0];
+            var fileName = Date.now() + "_return_" + file.name; 
+            const { error: uploadError } = await db.storage.from('return_photos').upload(fileName, file);
+            if (uploadError) { alert("照片上傳失敗"); btn.disabled = false; btn.innerText = "送出歸還"; return; }
 
-        const { data: urlData } = db.storage.from('return_photos').getPublicUrl(fileName);
-        const { error: dbError } = await db.from('borrow_records').update({
-            is_returned: true, return_date: returnDate, return_photo_url: urlData.publicUrl, return_notes: document.getElementById("returnNotes").value
-        }).eq('id', recordId);
+            const { data: urlData } = db.storage.from('return_photos').getPublicUrl(fileName);
+            const { error: dbError } = await db.from('borrow_records').update({
+                is_returned: true, return_date: returnDate, return_photo_url: urlData.publicUrl, return_notes: document.getElementById("returnNotes").value
+            }).eq('id', recordId);
 
-        if (dbError) { alert("寫入失敗"); } else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
+            if (dbError) { alert("寫入失敗"); } else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
+        } catch(e) {
+            alert("發生例外錯誤：" + e.message);
+        }
         btn.disabled = false; btn.innerText = "送出歸還通知";
     }
 
