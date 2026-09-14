@@ -29,6 +29,8 @@
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto; }
         .rules-link { color: #3498db; text-decoration: underline; cursor: pointer; font-weight: bold; }
+        .status-badge { background-color: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+        .status-ok { background-color: #2ecc71; }
     </style>
 </head>
 <body>
@@ -38,7 +40,7 @@
 
     <div id="homeMenu" class="home-menu">
         <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
-        <button class="btn-main btn-return" onclick="showSection('returnSection')">我要歸還設備</button>
+        <button class="btn-main btn-return" onclick="showSection('returnSection'); loadUnreturnedOptions();">我要歸還設備</button>
     </div>
 
     <div id="loginModal" class="modal">
@@ -51,6 +53,7 @@
         </div>
     </div>
 
+    <!-- 借用表單 -->
     <div id="borrowSection" class="form-section">
         <h3 style="text-align: center; color: #3498db;">📝 填寫借用單</h3>
         <form id="borrowForm">
@@ -59,7 +62,10 @@
                 <div class="form-group" style="flex: 1;"><label>借用時間</label><input type="time" id="startTime" step="3600" onchange="snapTime(this)" required></div>
                 <div class="form-group" style="flex: 1;"><label>歸還時間</label><input type="time" id="endTime" step="3600" onchange="snapTime(this)" required></div>
             </div>
-            <div class="form-group"><label>小組負責人 (姓名 / 電話)</label><input type="text" id="leaderInfo" placeholder="例：王大明 0912345678" required></div>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;"><label>小組負責人 (姓名)</label><input type="text" id="leaderName" placeholder="例：王大明" required></div>
+                <div class="form-group" style="flex: 1;"><label>聯絡電話</label><input type="text" id="leaderPhone" placeholder="例：0912345678" required></div>
+            </div>
             <div class="form-group">
                 <label>借用場地</label>
                 <select id="location" onchange="checkRules()" required>
@@ -100,12 +106,17 @@
         </form>
     </div>
 
+    <!-- 歸還表單 (連動選擇) -->
     <div id="returnSection" class="form-section">
         <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
         <form id="returnForm">
-            <div class="form-group"><label>歸還日期</label><input type="date" id="returnDate" required></div>
-            <div class="form-group"><label>小組負責人 (姓名)</label><input type="text" id="returnLeaderName" placeholder="例：王大明" required></div>
-            <div class="form-group"><label>聯絡電話</label><input type="text" id="returnLeaderPhone" placeholder="例：0912345678" required></div>
+            <div class="form-group">
+                <label>選擇尚未歸還的借用紀錄 (僅顯示未歸還)</label>
+                <select id="returnItemSelect" required>
+                    <option value="">讀取中...</option>
+                </select>
+            </div>
+            <div class="form-group"><label>實際歸還日期</label><input type="date" id="returnDate" required></div>
             <div class="form-group"><label>歸還設備照片上傳</label><input type="file" id="returnPhoto" accept="image/*" required></div>
             <div class="form-group"><label>歸還狀態 (如有損壞請註明)</label><input type="text" id="returnNotes" placeholder="設備皆正常歸還"></div>
             
@@ -114,25 +125,34 @@
         </form>
     </div>
 
+    <!-- 後台管理面板 -->
     <div id="adminSection" class="admin-section">
         <h3 style="color: #34495e; text-align: center;">📊 設備借還後台管理</h3>
+        
+        <div class="form-group" style="background: #eaf2f8; padding: 15px; border-radius: 8px;">
+            <label style="color: #2980b9;">📅 12月資料篩選</label>
+            <select id="adminWeekFilter" onchange="loadAdminData()">
+                <option value="">所有 12 月紀錄</option>
+                <option value="1">第一週 (12/1 - 12/7)</option>
+                <option value="2">第二週 (12/8 - 12/14)</option>
+                <option value="3">第三週 (12/15 - 12/21)</option>
+                <option value="4">第四週 (12/22 以後)</option>
+            </select>
+        </div>
+
         <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-            <button class="btn-back" style="width: 48%; margin:0;" onclick="loadAdminData()">🔄 重新整理資料</button>
+            <button class="btn-back" style="width: 48%; margin:0;" onclick="loadAdminData()">🔄 重新整理</button>
             <button class="btn-back" style="width: 48%; margin:0; background-color: #c0392b;" onclick="adminLogout()">登出管理員</button>
         </div>
         
-        <h4>📦 借用紀錄清單</h4>
+        <h4>⚠️ 未歸還清單</h4>
         <div style="overflow-x: auto; padding-bottom: 10px;">
-            <table id="borrowTable">
-                <tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th></tr>
-            </table>
+            <table id="unreturnedTable"></table>
         </div>
 
-        <h4 style="margin-top: 25px;">🔄 歸還紀錄清單</h4>
-        <div style="overflow-x: auto;">
-            <table id="returnTable">
-                <tr><th>日期</th><th>負責人</th><th>電話</th><th>照片</th></tr>
-            </table>
+        <h4 style="margin-top: 25px; color: #27ae60;">✅ 已歸還清單</h4>
+        <div style="overflow-x: auto; padding-bottom: 10px;">
+            <table id="returnedTable"></table>
         </div>
 
         <button class="btn-back" style="margin-top: 25px;" onclick="showSection('homeMenu')">返回首頁</button>
@@ -152,7 +172,6 @@
 <script>
     const SUPABASE_URL = 'https://xziokuyieegbuznwrnjp.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
-    
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     function showSection(sectionId) {
@@ -191,22 +210,16 @@
 
     async function checkAdminAccess() {
         const { data: { session } } = await db.auth.getSession();
-        if (session) {
-            showSection('adminSection');
-            loadAdminData();
-        } else {
-            document.getElementById('loginModal').style.display = 'flex';
-        }
+        if (session) { showSection('adminSection'); loadAdminData(); } 
+        else { document.getElementById('loginModal').style.display = 'flex'; }
     }
 
     async function adminLogin() {
         var email = document.getElementById('adminEmail').value;
         var password = document.getElementById('adminPassword').value;
-
         const { data, error } = await db.auth.signInWithPassword({ email: email, password: password });
-        if (error) {
-            alert("登入失敗：" + error.message);
-        } else {
+        if (error) { alert("登入失敗：" + error.message); } 
+        else {
             document.getElementById('loginModal').style.display = 'none';
             alert("管理員登入成功！");
             showSection('adminSection');
@@ -220,39 +233,73 @@
         showSection('homeMenu');
     }
 
-    async function loadAdminData() {
-        const { data: borrowData, error: borrowError } = await db.from('borrow_records').select('*').order('id', { ascending: false });
-        if (!borrowError) {
-            var bHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>MA303</th><th>MA707</th><th>譜架</th><th>鋼琴</th><th>備註</th></tr>';
-            borrowData.forEach(item => {
-                let vMa303 = (item.ma303 === "0" || !item.ma303) ? "-" : item.ma303;
-                let vMa707 = (item.ma707 === "0" || !item.ma707) ? "-" : item.ma707;
-                let vStand = (item.music_stand === "0" || !item.music_stand) ? "-" : item.music_stand;
-                let vPiano = (item.piano === "無" || !item.piano) ? "-" : item.piano;
-                let vNotes = (item.notes) ? item.notes : "-";
-
-                bHtml += `<tr>
-                    <td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td>
-                    <td>${item.location}</td><td>${item.leader_info}</td>
-                    <td style="text-align:center;">${vMa303}</td><td style="text-align:center;">${vMa707}</td>
-                    <td style="text-align:center;">${vStand}</td><td style="text-align:center;">${vPiano}</td>
-                    <td>${vNotes}</td>
-                </tr>`;
-            });
-            document.getElementById('borrowTable').innerHTML = bHtml;
-        }
-
-        const { data: returnData, error: returnError } = await db.from('return_records').select('*').order('id', { ascending: false });
-        if (!returnError) {
-            var rHtml = '<tr><th>日期</th><th>負責人</th><th>電話</th><th>照片</th></tr>';
-            returnData.forEach(item => {
-                rHtml += `<tr><td>${item.return_date}</td><td>${item.leader_name}</td><td>${item.leader_phone}</td><td><a href="${item.photo_url}" target="_blank">檢視照片</a></td></tr>`;
-            });
-            document.getElementById('returnTable').innerHTML = rHtml;
+    // 🔥 讀取未歸還清單供選單使用
+    async function loadUnreturnedOptions() {
+        let select = document.getElementById("returnItemSelect");
+        select.innerHTML = '<option value="">載入中...</option>';
+        const { data, error } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
+        
+        if (data) {
+            if (data.length === 0) {
+                select.innerHTML = '<option value="">目前沒有未歸還的設備</option>';
+            } else {
+                select.innerHTML = '<option value="">請選擇要歸還的項目...</option>';
+                data.forEach(item => {
+                    select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`;
+                });
+            }
         }
     }
 
-    // 🔥 升級版：包含場地與設備重疊防呆機制的送出函式
+    // 📊 載入並依照條件與歸還狀態篩選後台資料
+    async function loadAdminData() {
+        let weekFilter = document.getElementById("adminWeekFilter").value;
+        const { data: records, error } = await db.from('borrow_records').select('*').order('borrow_date', { ascending: false });
+        
+        if (error) return;
+
+        let unreturnedHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>電話</th><th>借出設備</th></tr>';
+        let returnedHtml = '<tr><th>借出日期</th><th>歸還日期</th><th>場地</th><th>負責人</th><th>歸還狀態</th><th>照片</th></tr>';
+
+        records.forEach(item => {
+            // 處理 12 月的週數篩選邏輯
+            if (item.borrow_date) {
+                let parts = item.borrow_date.split('-');
+                if (parts.length === 3) {
+                    let month = parseInt(parts[1], 10);
+                    let day = parseInt(parts[2], 10);
+                    
+                    if (month !== 12) return; // 略過非 12 月的紀錄
+                    
+                    if (weekFilter === '1' && (day < 1 || day > 7)) return;
+                    if (weekFilter === '2' && (day < 8 || day > 14)) return;
+                    if (weekFilter === '3' && (day < 15 || day > 21)) return;
+                    if (weekFilter === '4' && day < 22) return;
+                }
+            }
+
+            if (item.is_returned === false) {
+                let eq = `303:${item.ma303||0}, 707:${item.ma707||0}, 譜:${item.music_stand||0}, 琴:${item.piano}`;
+                unreturnedHtml += `<tr>
+                    <td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td>
+                    <td>${item.location}</td><td>${item.leader_name}</td><td>${item.leader_phone}</td>
+                    <td style="font-size:11px;">${eq}</td>
+                </tr>`;
+            } else {
+                let returnNote = item.return_notes ? item.return_notes : '正常';
+                returnedHtml += `<tr>
+                    <td>${item.borrow_date}</td><td>${item.return_date}</td>
+                    <td>${item.location}</td><td>${item.leader_name}</td>
+                    <td>${returnNote}</td>
+                    <td><a href="${item.return_photo_url}" target="_blank">檢視</a></td>
+                </tr>`;
+            }
+        });
+
+        document.getElementById('unreturnedTable').innerHTML = unreturnedHtml;
+        document.getElementById('returnedTable').innerHTML = returnedHtml;
+    }
+
     async function submitBorrow() {
         if (!document.getElementById("agreeRules").checked) { alert("請勾選同意借用守則！"); return; }
         
@@ -260,19 +307,14 @@
         var startTime = document.getElementById("startTime").value;
         var endTime = document.getElementById("endTime").value;
         var loc = document.getElementById("location").value;
-        var leader = document.getElementById("leaderInfo").value;
+        var name = document.getElementById("leaderName").value;
+        var phone = document.getElementById("leaderPhone").value;
 
-        if (!date || !startTime || !endTime || !leader || !loc) {
-            alert("請填寫所有必填欄位！"); return;
-        }
+        if (!date || !startTime || !endTime || !name || !phone || !loc) { alert("請填寫所有必填欄位！"); return; }
 
-        // 將時間轉換成整數小時 (例如 18:00 變成 18)
         var startHour = parseInt(startTime.split(':')[0], 10);
         var endHour = parseInt(endTime.split(':')[0], 10);
-        
-        if (startHour >= endHour) {
-            alert("歸還時間必須晚於借用時間！"); return;
-        }
+        if (startHour >= endHour) { alert("歸還時間必須晚於借用時間！"); return; }
 
         var reqMa303 = parseInt(document.getElementById("ma303").value) || 0;
         var reqMa707 = parseInt(document.getElementById("ma707").value) || 0;
@@ -282,19 +324,9 @@
         var btn = document.getElementById("submitBorrowBtn");
         btn.disabled = true; btn.innerText = "檢查時段與設備狀態中...";
 
-        // 1. 抓取同一天的所有借用紀錄進行比對
-        const { data: records, error: fetchError } = await db
-            .from('borrow_records')
-            .select('*')
-            .eq('borrow_date', date);
+        const { data: records, error: fetchError } = await db.from('borrow_records').select('*').eq('borrow_date', date);
+        if (fetchError) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
 
-        if (fetchError) {
-            alert("資料庫連線失敗：" + fetchError.message);
-            btn.disabled = false; btn.innerText = "送出借用申請";
-            return;
-        }
-
-        // 2. 逐小時比對衝突 (防呆機制核心邏輯)
         for (let h = startHour; h < endHour; h++) {
             let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
 
@@ -302,16 +334,11 @@
                 let recStart = parseInt(record.start_time.split(':')[0], 10);
                 let recEnd = parseInt(record.end_time.split(':')[0], 10);
 
-                // 若該紀錄的時間範圍涵蓋了當下檢查的小時區間 (交接點不衝突)
                 if (recStart <= h && recEnd > h) {
-                    // 檢查場地衝突
                     if (record.location === loc) {
-                        alert(`⛔ 【場地衝突】\n\n${h}:00-${h+1}:00 時段的「${loc}」已被其他人借用！\n請修改時間或選擇其他場地。`);
-                        btn.disabled = false; btn.innerText = "送出借用申請";
-                        return;
+                        alert(`⛔ 【場地衝突】\n\n${h}:00-${h+1}:00 時段的「${loc}」已被預約！`);
+                        btn.disabled = false; btn.innerText = "送出借用申請"; return;
                     }
-                    
-                    // 累加該小時段被借出的設備總量
                     usedMa303 += parseInt(record.ma303) || 0;
                     usedMa707 += parseInt(record.ma707) || 0;
                     usedStand += parseInt(record.music_stand) || 0;
@@ -319,119 +346,64 @@
                 }
             }
 
-            // 檢查設備庫存是否足夠
-            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) {
-                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 MA303 僅剩 ${3 - usedMa303} 台\n您預計借用 ${reqMa303} 台，請修改數量！`);
-                btn.disabled = false; btn.innerText = "送出借用申請";
-                return;
-            }
-            if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) {
-                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 MA707 已被借出！`);
-                btn.disabled = false; btn.innerText = "送出借用申請";
-                return;
-            }
-            if (reqStand > 0 && (reqStand + usedStand > 6)) {
-                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 譜架 僅剩 ${6 - usedStand} 個！`);
-                btn.disabled = false; btn.innerText = "送出借用申請";
-                return;
-            }
-            if (reqPiano && usedPiano) {
-                alert(`⛔ 【設備不足】\n\n${h}:00-${h+1}:00 時段的 鋼琴 已被借出！`);
-                btn.disabled = false; btn.innerText = "送出借用申請";
-                return;
-            }
+            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) { alert(`⛔ ${h}:00-${h+1}:00 MA303 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+            if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) { alert(`⛔ ${h}:00-${h+1}:00 MA707 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+            if (reqStand > 0 && (reqStand + usedStand > 6)) { alert(`⛔ ${h}:00-${h+1}:00 譜架 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+            if (reqPiano && usedPiano) { alert(`⛔ ${h}:00-${h+1}:00 鋼琴 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
         }
 
-        // 3. 通過防呆測試，準備寫入資料
         btn.innerText = "資料秒速傳送中...";
-        var techOption = "否";
-        if (loc === "兒主" || loc === "幼主") {
-            techOption = document.querySelector('input[name="needTech"]:checked').value;
-        }
+        var techOption = (loc === "兒主" || loc === "幼主") ? document.querySelector('input[name="needTech"]:checked').value : "否";
 
         const { error } = await db.from('borrow_records').insert([{
-            borrow_date: date,
-            start_time: startTime,
-            end_time: endTime,
-            location: loc,
-            leader_info: leader,
-            need_tech: techOption,
-            ma303: reqMa303.toString(),
-            ma707: reqMa707.toString(),
-            piano: reqPiano ? "是" : "無",
-            music_stand: reqStand.toString(),
-            notes: document.getElementById("notes").value
+            borrow_date: date, start_time: startTime, end_time: endTime, location: loc,
+            leader_name: name, leader_phone: phone, need_tech: techOption,
+            ma303: reqMa303.toString(), ma707: reqMa707.toString(),
+            piano: reqPiano ? "是" : "無", music_stand: reqStand.toString(), notes: document.getElementById("notes").value
         }]);
 
         if (error) { alert("發生錯誤：" + error.message); } 
-        else {
-            alert("借用申請已成功送出！");
-            document.getElementById("borrowForm").reset();
-            checkRules(); showSection('homeMenu');
-        }
+        else { alert("申請成功！"); document.getElementById("borrowForm").reset(); checkRules(); showSection('homeMenu'); }
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
+    // 🔥 升級版：利用 update 語法連動歸還與照片上傳
     async function submitReturn() {
-        var date = document.getElementById("returnDate").value;
-        var name = document.getElementById("returnLeaderName").value;
-        var phone = document.getElementById("returnLeaderPhone").value;
+        var recordId = document.getElementById("returnItemSelect").value;
+        var returnDate = document.getElementById("returnDate").value;
         var fileInput = document.getElementById("returnPhoto");
         
-        if(!date || !name || !phone || fileInput.files.length === 0) { alert("請填寫所有欄位並上傳照片！"); return; }
+        if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請選擇歸還項目、填寫日期並上傳照片！"); return; }
 
         var btn = document.getElementById("submitReturnBtn");
-        btn.disabled = true; btn.innerText = "照片上傳中...";
+        btn.disabled = true; btn.innerText = "照片上傳與狀態更新中...";
 
         var file = fileInput.files[0];
-        var fileName = Date.now() + "_" + name + "_" + file.name; 
+        var fileName = Date.now() + "_return_" + file.name; 
 
-        const { data: uploadData, error: uploadError } = await db.storage
-            .from('return_photos')
-            .upload(fileName, file);
+        const { data: uploadData, error: uploadError } = await db.storage.from('return_photos').upload(fileName, file);
+        if (uploadError) { alert("照片上傳失敗：" + uploadError.message); btn.disabled = false; btn.innerText = "送出歸還通知"; return; }
 
-        if (uploadError) {
-            alert("照片上傳失敗：" + uploadError.message);
-            btn.disabled = false; btn.innerText = "送出歸還通知";
-            return;
-        }
+        const { data: publicUrlData } = db.storage.from('return_photos').getPublicUrl(fileName);
 
-        const { data: publicUrlData } = db.storage
-            .from('return_photos')
-            .getPublicUrl(fileName);
-
-        const { error: dbError } = await db.from('return_records').insert([{
-            return_date: date,
-            leader_name: name,
-            leader_phone: phone,
-            photo_url: publicUrlData.publicUrl,
-            notes: document.getElementById("returnNotes").value || "設備皆正常歸還"
-        }]);
+        const { error: dbError } = await db.from('borrow_records').update({
+            is_returned: true,
+            return_date: returnDate,
+            return_photo_url: publicUrlData.publicUrl,
+            return_notes: document.getElementById("returnNotes").value || "設備皆正常歸還"
+        }).eq('id', recordId);
 
         if (dbError) { alert("資料寫入失敗：" + dbError.message); } 
-        else {
-            alert("已成功發送歸還通知並上傳照片！");
-            document.getElementById("returnForm").reset();
-            showSection('homeMenu');
-        }
+        else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
         btn.disabled = false; btn.innerText = "送出歸還通知";
     }
 
-    let clickCount = 0;
-    let clickTimer = null;
-
+    let clickCount = 0; let clickTimer = null;
     function secretAdminTrigger() {
         clickCount++;
-        
-        if (clickCount >= 5) {
-            checkAdminAccess();
-            clickCount = 0; 
-        }
-
+        if (clickCount >= 5) { checkAdminAccess(); clickCount = 0; }
         clearTimeout(clickTimer);
-        clickTimer = setTimeout(() => {
-            clickCount = 0;
-        }, 2000);
+        clickTimer = setTimeout(() => { clickCount = 0; }, 2000);
     }
 </script>
 </body>
