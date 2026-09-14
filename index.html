@@ -25,13 +25,15 @@
         .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-danger { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto; }
         .upload-label { cursor: pointer; background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-block; }
         .rules-link { color: #3498db; text-decoration: underline; cursor: pointer; font-weight: bold; }
+        .date-header { background: #34495e; color: white; padding: 8px 12px; border-radius: 6px 6px 0 0; font-weight: bold; margin-top: 15px; font-size: 15px; }
+        .grouped-table { margin-top: 0; border-radius: 0 0 6px 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
@@ -90,7 +92,6 @@
         <form id="borrowForm">
             <div class="form-group"><label>日期 (限 2026年12月)</label><input type="date" id="borrowDate" min="2026-12-01" max="2026-12-31" required></div>
             <div style="display: flex; gap: 10px;">
-                <!-- 將時間的 step 改為 1800 (半小時) -->
                 <div class="form-group" style="flex: 1;"><label>借用時間</label><input type="time" id="startTime" step="1800" onchange="snapTime(this)" required></div>
                 <div class="form-group" style="flex: 1;"><label>歸還時間</label><input type="time" id="endTime" step="1800" onchange="snapTime(this)" required></div>
             </div>
@@ -177,10 +178,10 @@
         </div>
         
         <h4>⚠️ 未歸還清單</h4>
-        <div style="overflow-x: auto; padding-bottom: 10px;"><table id="unreturnedTable"></table></div>
+        <div id="unreturnedContainer" style="overflow-x: auto; padding-bottom: 10px;"></div>
 
         <h4 style="margin-top: 25px; color: #27ae60;">✅ 已歸還清單</h4>
-        <div style="overflow-x: auto; padding-bottom: 10px;"><table id="returnedTable"></table></div>
+        <div id="returnedContainer" style="overflow-x: auto; padding-bottom: 10px;"></div>
         
         <button class="btn-back" style="margin-top: 25px;" onclick="showSection('homeMenu')">返回首頁</button>
     </div>
@@ -191,12 +192,12 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_fg9cjYZrdkzZ8oiE6yH_Kg_Qcppb6pg';
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 時間運算輔助工具（支援半小時為單位）
     function timeToFloat(timeStr) {
         if (!timeStr) return 0;
         let parts = timeStr.split(':');
         return parseInt(parts[0], 10) + (parseInt(parts[1], 10) / 60);
     }
+    
     function floatToTimeStr(f) {
         let h = Math.floor(f);
         let m = (f - h) >= 0.5 ? '30' : '00';
@@ -231,12 +232,10 @@
         var parts = input.value.split(':');
         var hours = parseInt(parts[0], 10);
         var mins = parseInt(parts[1], 10);
-        // 自動對齊為 00 或 30
         if (mins !== 0 && mins !== 30) {
             if (mins >= 45) { hours += 1; mins = 0; }
             else if (mins >= 15) { mins = 30; }
             else { mins = 0; }
-            
             if (hours >= 24) hours = 0;
             input.value = hours.toString().padStart(2, '0') + ':' + mins.toString().padStart(2, '0');
             alert("系統已將時間自動調整為「半小時」為單位！");
@@ -258,7 +257,6 @@
                 let status = item.is_returned ? "✅ 已歸還" : "⚠️ 未歸還";
                 let reqQty = parseInt(item.ma303) || 0;
                 
-                // 動態組裝設備清單，沒借的不顯示
                 let eqParts = [];
                 if (reqQty > 0) {
                     let assignedClean = item.ma303_assigned ? item.ma303_assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C') : '';
@@ -355,7 +353,6 @@
             const { data: records, error } = await db.from('borrow_records').select('*').eq('borrow_date', date).neq('id', id);
             if (error) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "確認分配"; return; }
             
-            // 每半小時精準檢查防呆
             for (let t = startFloat; t < endFloat; t += 0.5) {
                 let timeStr = `${floatToTimeStr(t)}-${floatToTimeStr(t+0.5)}`;
                 let usedThisHour = [];
@@ -386,13 +383,26 @@
         btn.disabled = false; btn.innerText = "確認分配";
     }
 
+    // 🔥 升級版：載入後台資料 (按日期分組 + 按時間從早到晚排序)
     async function loadAdminData() {
         let weekFilter = document.getElementById("adminWeekFilter").value;
-        const { data: records, error } = await db.from('borrow_records').select('*').order('borrow_date', { ascending: false });
+        const { data: records, error } = await db.from('borrow_records').select('*');
         if (error) return;
 
-        let unreturnedHtml = '<tr><th>日期/場地/人/電話</th><th>借出設備</th><th>📍 領取照片</th><th>操作</th></tr>';
-        let returnedHtml = '<tr><th>借出與歸還日期</th><th>場地/人/電話</th><th>狀態</th><th>操作</th></tr>';
+        // 1. 全域資料排序：優先比對日期(早到晚)，日期相同則比對時間(早到晚)
+        records.sort((a, b) => {
+            let dateA = a.borrow_date || '';
+            let dateB = b.borrow_date || '';
+            if (dateA !== dateB) return dateA.localeCompare(dateB);
+            
+            let timeA = timeToFloat(a.start_time);
+            let timeB = timeToFloat(b.start_time);
+            return timeA - timeB;
+        });
+
+        // 2. 將資料依「日期」分類進不同的群組
+        let unreturnedGroups = {};
+        let returnedGroups = {};
 
         records.forEach(item => {
             if (weekFilter !== '' && item.borrow_date) {
@@ -408,55 +418,90 @@
             }
 
             if (item.is_returned === false) {
-                let reqQty = parseInt(item.ma303) || 0;
-                let ma303AdminUI = '無';
-                
-                let eqParts = [];
-                
-                if (reqQty > 0) {
-                    let assigned = item.ma303_assigned || '';
-                    assigned = assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C');
-                    
-                    if (assigned) {
-                        ma303AdminUI = `<span style="color:#27ae60; font-weight:bold;">${assigned}</span><br>
-                        <button onclick="editMa303(${item.id})" style="font-size:11px; padding:2px 6px; margin-top:4px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">重新分配</button>`;
-                    } else {
-                        ma303AdminUI = `<div style="font-size:11px; background:#fff; padding:5px; border-radius:4px; border:1px solid #ddd; display:inline-block; margin-top:2px;">
-                            申請 <b>${reqQty}</b> 台<br>
-                            <label><input type="checkbox" id="ma303_A_${item.id}" value="編號A">A</label>
-                            <label><input type="checkbox" id="ma303_B_${item.id}" value="編號B">B</label>
-                            <label><input type="checkbox" id="ma303_C_${item.id}" value="編號C">C</label><br>
-                            <button id="btn_assign_${item.id}" onclick="assignMa303(${item.id}, '${item.borrow_date}', '${item.start_time}', '${item.end_time}', ${reqQty})" style="margin-top:4px; cursor:pointer; font-size:11px; background:#34495e; color:white; border:none; padding:3px 6px; border-radius:3px;">確認分配</button>
-                        </div>`;
-                    }
-                    eqParts.push(`MA303: ${ma303AdminUI}`);
-                }
-                
-                if (parseInt(item.ma707) > 0) eqParts.push(`MA707: ${item.ma707}`);
-                if (parseInt(item.music_stand) > 0) eqParts.push(`譜架: ${item.music_stand}`);
-                if (item.piano === '是') eqParts.push(`鋼琴: 是`);
-                
-                let eq = eqParts.length > 0 ? eqParts.join('<br>') : `<span style="color:#95a5a6;">無</span>`;
-
-                let photoAction = item.pickup_photo_url 
-                    ? `<a href="${item.pickup_photo_url}" target="_blank">查看</a> | <label class="upload-label">重傳<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>` 
-                    : `<label class="upload-label">上傳照片<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>`;
-
-                unreturnedHtml += `<tr>
-                    <td>${item.borrow_date}<br>${item.start_time}-${item.end_time}<br>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
-                    <td style="min-width:140px;">${eq}</td><td>${photoAction}</td>
-                    <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
-                </tr>`;
+                if (!unreturnedGroups[item.borrow_date]) unreturnedGroups[item.borrow_date] = [];
+                unreturnedGroups[item.borrow_date].push(item);
             } else {
-                returnedHtml += `<tr>
-                    <td>出: ${item.borrow_date}<br>還: ${item.return_date}</td><td>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
-                    <td>${item.return_notes || '正常'}<br><a href="${item.return_photo_url}" target="_blank">📸 歸還照</a></td>
-                    <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
-                </tr>`;
+                if (!returnedGroups[item.borrow_date]) returnedGroups[item.borrow_date] = [];
+                returnedGroups[item.borrow_date].push(item);
             }
         });
-        document.getElementById('unreturnedTable').innerHTML = unreturnedHtml;
-        document.getElementById('returnedTable').innerHTML = returnedHtml;
+
+        // 3. 建立群組化的 HTML 介面 (未歸還)
+        let unreturnedHtml = '';
+        if (Object.keys(unreturnedGroups).length === 0) {
+            unreturnedHtml = '<p style="color:#7f8c8d;">目前沒有資料</p>';
+        } else {
+            for (let date in unreturnedGroups) {
+                unreturnedHtml += `<div class="date-header">📅 日期：${date}</div>`;
+                unreturnedHtml += `<table class="grouped-table"><tr><th style="width: 125px;">時間/場地/人/電話</th><th>借出設備</th><th>📍 領取照片</th><th>操作</th></tr>`;
+                
+                unreturnedGroups[date].forEach(item => {
+                    let reqQty = parseInt(item.ma303) || 0;
+                    let ma303AdminUI = '無';
+                    let eqParts = [];
+                    
+                    if (reqQty > 0) {
+                        let assigned = item.ma303_assigned || '';
+                        assigned = assigned.replace(/A機/g, '編號A').replace(/B機/g, '編號B').replace(/C機/g, '編號C');
+                        
+                        if (assigned) {
+                            ma303AdminUI = `<span style="color:#27ae60; font-weight:bold;">${assigned}</span><br>
+                            <button onclick="editMa303(${item.id})" style="font-size:11px; padding:2px 6px; margin-top:4px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">重新分配</button>`;
+                        } else {
+                            ma303AdminUI = `<div style="font-size:11px; background:#fff; padding:5px; border-radius:4px; border:1px solid #ddd; display:inline-block; margin-top:2px;">
+                                申請 <b>${reqQty}</b> 台<br>
+                                <label><input type="checkbox" id="ma303_A_${item.id}" value="編號A">A</label>
+                                <label><input type="checkbox" id="ma303_B_${item.id}" value="編號B">B</label>
+                                <label><input type="checkbox" id="ma303_C_${item.id}" value="編號C">C</label><br>
+                                <button id="btn_assign_${item.id}" onclick="assignMa303(${item.id}, '${item.borrow_date}', '${item.start_time}', '${item.end_time}', ${reqQty})" style="margin-top:4px; cursor:pointer; font-size:11px; background:#34495e; color:white; border:none; padding:3px 6px; border-radius:3px;">確認分配</button>
+                            </div>`;
+                        }
+                        eqParts.push(`MA303: ${ma303AdminUI}`);
+                    }
+                    
+                    if (parseInt(item.ma707) > 0) eqParts.push(`MA707: ${item.ma707}`);
+                    if (parseInt(item.music_stand) > 0) eqParts.push(`譜架: ${item.music_stand}`);
+                    if (item.piano === '是') eqParts.push(`鋼琴: 是`);
+                    
+                    let eq = eqParts.length > 0 ? eqParts.join('<br>') : `<span style="color:#95a5a6;">無</span>`;
+
+                    let photoAction = item.pickup_photo_url 
+                        ? `<a href="${item.pickup_photo_url}" target="_blank">查看</a> | <label class="upload-label">重傳<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>` 
+                        : `<label class="upload-label">上傳照片<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>`;
+
+                    // 移除了第一格的日期顯示，因為已經寫在群組標題了
+                    unreturnedHtml += `<tr>
+                        <td><b>${item.start_time}-${item.end_time}</b><br>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
+                        <td style="min-width:140px;">${eq}</td><td>${photoAction}</td>
+                        <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
+                    </tr>`;
+                });
+                unreturnedHtml += `</table>`;
+            }
+        }
+        document.getElementById('unreturnedContainer').innerHTML = unreturnedHtml;
+
+        // 4. 建立群組化的 HTML 介面 (已歸還)
+        let returnedHtml = '';
+        if (Object.keys(returnedGroups).length === 0) {
+            returnedHtml = '<p style="color:#7f8c8d;">目前沒有資料</p>';
+        } else {
+            for (let date in returnedGroups) {
+                returnedHtml += `<div class="date-header" style="background: #27ae60;">📅 借出日期：${date}</div>`;
+                returnedHtml += `<table class="grouped-table"><tr><th style="width: 125px;">時間/場地/人/電話</th><th>歸還日期/狀態</th><th>📸 照片</th><th>操作</th></tr>`;
+                
+                returnedGroups[date].forEach(item => {
+                    returnedHtml += `<tr>
+                        <td><b>${item.start_time}-${item.end_time}</b><br>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
+                        <td>${item.return_date}<br>${item.return_notes || '正常'}</td>
+                        <td><a href="${item.return_photo_url}" target="_blank">檢視</a></td>
+                        <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
+                    </tr>`;
+                });
+                returnedHtml += `</table>`;
+            }
+        }
+        document.getElementById('returnedContainer').innerHTML = returnedHtml;
     }
 
     async function submitBorrow() {
@@ -487,7 +532,6 @@
             const { data: records, error: fetchError } = await db.from('borrow_records').select('*').eq('borrow_date', date);
             if (fetchError) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
 
-            // 每半小時切片檢查
             for (let t = startFloat; t < endFloat; t += 0.5) {
                 let timeStr = `${floatToTimeStr(t)}-${floatToTimeStr(t+0.5)}`;
                 let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
