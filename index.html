@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2025聖誕餐會 設備外借管理系統</title>
+    <title>2026聖誕餐會 設備外借管理系統</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
@@ -13,34 +13,35 @@
         .btn-main { width: 100%; max-width: 280px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
         .btn-borrow { background-color: #3498db; color: white; }
         .btn-return { background-color: #e67e22; color: white; }
+        .btn-query { background-color: #9b59b6; color: white; }
         .form-section, .admin-section { display: none; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px; }
         input[type="text"], input[type="date"], input[type="time"], input[type="file"], input[type="password"], input[type="email"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
         .hidden { display: none; }
-        .radio-group { display: flex; gap: 15px; align-items: center; margin-top: 5px; }
+        .radio-group { display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
         .radio-group label { display: flex; align-items: center; font-weight: normal; font-size: 16px; margin: 0; cursor: pointer; }
         .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .btn-back { width: 100%; padding: 12px; background-color: #95a5a6; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-danger { background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 25px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto; }
-        .rules-link { color: #3498db; text-decoration: underline; cursor: pointer; font-weight: bold; }
-        .status-badge { background-color: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
-        .status-ok { background-color: #2ecc71; }
+        .upload-label { cursor: pointer; background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: inline-block; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 onclick="secretAdminTrigger()" style="user-select: none; cursor: pointer;">🎄 聖誕餐會設備管理系統</h2>
+    <h2 onclick="secretAdminTrigger()" style="user-select: none; cursor: pointer;">🎄 2026聖誕餐會 設備外借管理系統</h2>
 
     <div id="homeMenu" class="home-menu">
-        <button class="btn-main btn-borrow" onclick="showSection('borrowSection')">我要借設備</button>
+        <button class="btn-main btn-borrow" onclick="showSection('rulesSection')">我要借設備</button>
         <button class="btn-main btn-return" onclick="showSection('returnSection'); loadUnreturnedOptions();">我要歸還設備</button>
+        <button class="btn-main btn-query" onclick="showSection('querySection')">查詢我的借用狀態</button>
     </div>
 
     <div id="loginModal" class="modal">
@@ -53,119 +54,104 @@
         </div>
     </div>
 
-    <!-- 借用表單 -->
+    <div id="rulesSection" class="form-section">
+        <h3 style="text-align: center; color: #c0392b;">⚠️ 借用設備需知</h3>
+        <div style="background: #fdf2e9; padding: 15px; border-radius: 8px; line-height: 1.6; font-size: 15px;">
+            <p>1. 僅開放 <strong>2026年12月份</strong> 借用。</p>
+            <p>2. 借用與歸還時間請確實遵守，以免影響下一個使用的小組。</p>
+            <p>3. 領取設備時，請至系統查詢您的「領取位置照片」。</p>
+            <p>4. 歸還時請拍攝設備現況上傳，若有損壞請務必備註。</p>
+        </div>
+        <button class="btn-submit" onclick="showSection('borrowSection')">我同意，開始填寫</button>
+        <button class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
+    </div>
+
+    <div id="querySection" class="form-section">
+        <h3 style="text-align: center; color: #9b59b6;">🔍 查詢借用與領取狀態</h3>
+        <div class="form-group"><label>請輸入當時填寫的聯絡電話</label><input type="text" id="searchPhone" placeholder="例：0912345678"></div>
+        <button class="btn-submit" onclick="queryRecords()">查詢</button>
+        <div id="queryResult" style="margin-top: 20px; overflow-x: auto;"></div>
+        <button class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
+    </div>
+
     <div id="borrowSection" class="form-section">
         <h3 style="text-align: center; color: #3498db;">📝 填寫借用單</h3>
         <form id="borrowForm">
-            <div class="form-group"><label>日期與星期</label><input type="date" id="borrowDate" required></div>
+            <div class="form-group"><label>日期 (限 2026年12月)</label><input type="date" id="borrowDate" min="2026-12-01" max="2026-12-31" required></div>
             <div style="display: flex; gap: 10px;">
                 <div class="form-group" style="flex: 1;"><label>借用時間</label><input type="time" id="startTime" step="3600" onchange="snapTime(this)" required></div>
                 <div class="form-group" style="flex: 1;"><label>歸還時間</label><input type="time" id="endTime" step="3600" onchange="snapTime(this)" required></div>
             </div>
             <div style="display: flex; gap: 10px;">
-                <div class="form-group" style="flex: 1;"><label>小組負責人 (姓名)</label><input type="text" id="leaderName" placeholder="例：王大明" required></div>
+                <div class="form-group" style="flex: 1;"><label>負責人</label><input type="text" id="leaderName" placeholder="例：王大明" required></div>
                 <div class="form-group" style="flex: 1;"><label>聯絡電話</label><input type="text" id="leaderPhone" placeholder="例：0912345678" required></div>
             </div>
             <div class="form-group">
                 <label>借用場地</label>
                 <select id="location" onchange="checkRules()" required>
                     <option value="">請選擇場地...</option>
-                    <option value="交誼廳">交誼廳</option>
-                    <option value="餐廳">餐廳</option>
-                    <option value="兒主">兒主</option>
-                    <option value="幼主">幼主</option>
-                    <option value="教會外場地">教會外場地</option>
+                    <option value="交誼廳">交誼廳</option><option value="餐廳">餐廳</option><option value="兒主">兒主</option>
+                    <option value="幼主">幼主</option><option value="教會外場地">教會外場地</option>
                 </select>
             </div>
             
             <div class="form-group hidden" id="soundTechSection">
                 <label style="color: #e74c3c;">是否需要音控同工協助開啟設備？</label>
-                <div class="radio-group">
-                    <label><input type="radio" name="needTech" value="是"> 是</label>
-                    <label><input type="radio" name="needTech" value="否" checked> 否</label>
-                </div>
+                <div class="radio-group"><label><input type="radio" name="needTech" value="是"> 是</label><label><input type="radio" name="needTech" value="否" checked> 否</label></div>
             </div>
 
             <hr>
             <h4 style="color: #333;">設備需求</h4>
-            <div class="form-group"><label>MA303 (總量：3)</label><select id="ma303"><option value="0">不需要</option><option value="1">1 台</option><option value="2">2 台</option><option value="3">3 台</option></select></div>
+            <div class="form-group"><label>MA303 (總量：3，型號由管理員分配)</label><select id="ma303"><option value="0">不需要</option><option value="1">1 台</option><option value="2">2 台</option><option value="3">3 台</option></select></div>
             <div class="form-group"><label>MA707 (總量：1)</label><select id="ma707"><option value="0">不需要</option><option value="1">1 台</option></select></div>
             <div class="form-group"><label>譜架 (總量：6，最多借2個)</label><select id="musicStand"><option value="0">不需要</option><option value="1">1 個</option><option value="2">2 個</option></select></div>
-            <div class="form-group" id="pianoSection"><label>鋼琴 (教會外場地禁止借用)</label><label style="font-weight: normal; font-size: 16px;"><input type="checkbox" id="piano" style="width: 18px; height: 18px; margin-right: 8px; cursor: pointer;"> 需要借用鋼琴</label></div>
+            <div class="form-group" id="pianoSection"><label>鋼琴 (教會外場地禁止借用)</label><label style="font-weight: normal; font-size: 16px;"><input type="checkbox" id="piano"> 需要借用鋼琴</label></div>
             <div class="form-group"><label>其他 (備註)</label><input type="text" id="notes" placeholder="無"></div>
-
-            <div class="form-group" style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
-                <label style="font-weight: normal; color: #d9534f; font-size: 15px; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="agreeRules" required> 
-                    我已閱讀並同意 <span class="rules-link" onclick="openModal()">設備借用守則</span>
-                </label>
-            </div>
 
             <button type="button" class="btn-submit" id="submitBorrowBtn" onclick="submitBorrow()">送出借用申請</button>
             <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
         </form>
     </div>
 
-    <!-- 歸還表單 (連動選擇) -->
     <div id="returnSection" class="form-section">
         <h3 style="text-align: center; color: #e67e22;">🔄 填寫歸還單</h3>
         <form id="returnForm">
             <div class="form-group">
-                <label>選擇尚未歸還的借用紀錄 (僅顯示未歸還)</label>
-                <select id="returnItemSelect" required>
-                    <option value="">讀取中...</option>
-                </select>
+                <label>選擇尚未歸還的借用紀錄</label>
+                <select id="returnItemSelect" required><option value="">讀取中...</option></select>
             </div>
             <div class="form-group"><label>實際歸還日期</label><input type="date" id="returnDate" required></div>
             <div class="form-group"><label>歸還設備照片上傳</label><input type="file" id="returnPhoto" accept="image/*" required></div>
             <div class="form-group"><label>歸還狀態 (如有損壞請註明)</label><input type="text" id="returnNotes" placeholder="設備皆正常歸還"></div>
-            
             <button type="button" class="btn-submit" id="submitReturnBtn" onclick="submitReturn()">送出歸還通知</button>
             <button type="button" class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
         </form>
     </div>
 
-    <!-- 後台管理面板 -->
     <div id="adminSection" class="admin-section">
         <h3 style="color: #34495e; text-align: center;">📊 設備借還後台管理</h3>
-        
         <div class="form-group" style="background: #eaf2f8; padding: 15px; border-radius: 8px;">
             <label style="color: #2980b9;">📅 12月資料篩選</label>
             <select id="adminWeekFilter" onchange="loadAdminData()">
-                <option value="">所有 12 月紀錄</option>
+                <option value="">所有紀錄</option>
                 <option value="1">第一週 (12/1 - 12/7)</option>
                 <option value="2">第二週 (12/8 - 12/14)</option>
                 <option value="3">第三週 (12/15 - 12/21)</option>
                 <option value="4">第四週 (12/22 以後)</option>
             </select>
         </div>
-
         <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
             <button class="btn-back" style="width: 48%; margin:0;" onclick="loadAdminData()">🔄 重新整理</button>
             <button class="btn-back" style="width: 48%; margin:0; background-color: #c0392b;" onclick="adminLogout()">登出管理員</button>
         </div>
         
         <h4>⚠️ 未歸還清單</h4>
-        <div style="overflow-x: auto; padding-bottom: 10px;">
-            <table id="unreturnedTable"></table>
-        </div>
+        <div style="overflow-x: auto; padding-bottom: 10px;"><table id="unreturnedTable"></table></div>
 
         <h4 style="margin-top: 25px; color: #27ae60;">✅ 已歸還清單</h4>
-        <div style="overflow-x: auto; padding-bottom: 10px;">
-            <table id="returnedTable"></table>
-        </div>
-
+        <div style="overflow-x: auto; padding-bottom: 10px;"><table id="returnedTable"></table></div>
+        
         <button class="btn-back" style="margin-top: 25px;" onclick="showSection('homeMenu')">返回首頁</button>
-    </div>
-</div>
-
-<div id="rulesModal" class="modal">
-    <div class="modal-content">
-        <h3 style="margin-top: 0;">設備借用守則</h3>
-        <p>1. 請務必於申請時段內歸還設備。</p>
-        <p>2. 歸還時請將設備恢復原狀，並拍攝照片上傳至歸還系統。</p>
-        <p>3. 若有設備損壞，請主動於歸還備註中說明。</p>
-        <button class="btn-submit" onclick="closeModal()">我瞭解了</button>
     </div>
 </div>
 
@@ -177,15 +163,14 @@
     function showSection(sectionId) {
         document.getElementById('homeMenu').style.display = 'none';
         document.getElementById('borrowSection').style.display = 'none';
+        document.getElementById('rulesSection').style.display = 'none';
         document.getElementById('returnSection').style.display = 'none';
+        document.getElementById('querySection').style.display = 'none';
         document.getElementById('adminSection').style.display = 'none';
         
         if (sectionId === 'homeMenu') document.getElementById('homeMenu').style.display = 'flex';
         else document.getElementById(sectionId).style.display = 'block';
     }
-
-    function openModal() { document.getElementById('rulesModal').style.display = 'flex'; }
-    function closeModal() { document.getElementById('rulesModal').style.display = 'none'; }
 
     function checkRules() {
         var loc = document.getElementById("location").value;
@@ -208,6 +193,37 @@
         }
     }
 
+    async function queryRecords() {
+        var phone = document.getElementById('searchPhone').value;
+        if(!phone) { alert('請輸入電話號碼'); return; }
+        document.getElementById('queryResult').innerHTML = "查詢中...";
+
+        const { data, error } = await db.from('borrow_records').select('*').eq('leader_phone', phone).order('borrow_date', { ascending: false });
+        if(error) { document.getElementById('queryResult').innerHTML = "查詢失敗"; return; }
+        if(data.length === 0) { document.getElementById('queryResult').innerHTML = "找不到此電話的借用紀錄。"; return; }
+
+        let html = '<table><tr><th>日期時間</th><th>場地</th><th>設備</th><th>狀態與領取位置</th></tr>';
+        data.forEach(item => {
+            let status = item.is_returned ? "✅ 已歸還" : "⚠️ 未歸還";
+            
+            let reqQty = parseInt(item.ma303) || 0;
+            let ma303Status = '無';
+            if (reqQty > 0) {
+                ma303Status = item.ma303_assigned ? `<span style="color:#27ae60; font-weight:bold;">${item.ma303_assigned}</span>` : `已申請 ${reqQty} 台<br><span style="color:#e74c3c;">(等待管理員分配中)</span>`;
+            }
+            
+            let eq = `MA303: ${ma303Status}<br>MA707: ${item.ma707||0}<br>譜架: ${item.music_stand||0}<br>鋼琴: ${item.piano}`;
+            let pickup = "";
+            if (!item.is_returned) {
+                if (item.pickup_photo_url) { pickup = `<br><a href="${item.pickup_photo_url}" target="_blank" style="color:#e67e22; font-weight:bold;">📍 查看領取照片</a>`; } 
+                else { pickup = `<br><span style="color:#95a5a6;">(管理員尚未上傳位置)</span>`; }
+            }
+            html += `<tr><td>${item.borrow_date}<br>${item.start_time}-${item.end_time}</td><td>${item.location}</td><td style="font-size:11px;">${eq}</td><td>${status}${pickup}</td></tr>`;
+        });
+        html += '</table>';
+        document.getElementById('queryResult').innerHTML = html;
+    }
+
     async function checkAdminAccess() {
         const { data: { session } } = await db.auth.getSession();
         if (session) { showSection('adminSection'); loadAdminData(); } 
@@ -217,60 +233,104 @@
     async function adminLogin() {
         var email = document.getElementById('adminEmail').value;
         var password = document.getElementById('adminPassword').value;
-        const { data, error } = await db.auth.signInWithPassword({ email: email, password: password });
+        const { error } = await db.auth.signInWithPassword({ email: email, password: password });
         if (error) { alert("登入失敗：" + error.message); } 
-        else {
-            document.getElementById('loginModal').style.display = 'none';
-            alert("管理員登入成功！");
-            showSection('adminSection');
-            loadAdminData();
+        else { document.getElementById('loginModal').style.display = 'none'; showSection('adminSection'); loadAdminData(); }
+    }
+
+    async function adminLogout() { await db.auth.signOut(); showSection('homeMenu'); }
+
+    async function deleteRecord(id) {
+        if(confirm("確定要永久刪除這筆紀錄嗎？")) {
+            await db.from('borrow_records').delete().eq('id', id);
+            alert("已刪除！"); loadAdminData();
         }
     }
 
-    async function adminLogout() {
-        await db.auth.signOut();
-        alert("已登出管理員");
-        showSection('homeMenu');
+    async function uploadPickupPhoto(id, inputElement) {
+        if(inputElement.files.length === 0) return;
+        var file = inputElement.files[0];
+        var fileName = Date.now() + "_pickup_" + file.name; 
+        alert("照片上傳中，請稍候...");
+
+        const { error: uploadError } = await db.storage.from('pickup_photos').upload(fileName, file);
+        if (uploadError) { alert("上傳失敗：" + uploadError.message); return; }
+
+        const { data: urlData } = db.storage.from('pickup_photos').getPublicUrl(fileName);
+        await db.from('borrow_records').update({ pickup_photo_url: urlData.publicUrl }).eq('id', id);
+        alert("領取照片上傳成功！"); loadAdminData();
     }
 
-    // 🔥 讀取未歸還清單供選單使用
+    // 🔥 管理員分配 MA303 防呆邏輯
+    async function assignMa303(id, date, start, end, reqQty) {
+        let selected = [];
+        if(document.getElementById(`ma303_A_${id}`).checked) selected.push("A機");
+        if(document.getElementById(`ma303_B_${id}`).checked) selected.push("B機");
+        if(document.getElementById(`ma303_C_${id}`).checked) selected.push("C機");
+        
+        if (selected.length !== reqQty) {
+            alert(`該小組申請了 ${reqQty} 台，您目前勾選了 ${selected.length} 台，請確認數量相符！`);
+            return;
+        }
+
+        var btn = document.getElementById(`btn_assign_${id}`);
+        btn.innerText = "檢查與儲存中...";
+        btn.disabled = true;
+        
+        let startHour = parseInt(start.split(':')[0], 10);
+        let endHour = parseInt(end.split(':')[0], 10);
+        
+        const { data: records, error } = await db.from('borrow_records').select('*').eq('borrow_date', date).neq('id', id);
+        if (error) { alert("系統連線失敗"); btn.disabled = false; btn.innerText = "確認分配"; return; }
+        
+        for (let h = startHour; h < endHour; h++) {
+            let usedThisHour = [];
+            for (let rec of records) {
+                let rStart = parseInt(rec.start_time.split(':')[0], 10);
+                let rEnd = parseInt(rec.end_time.split(':')[0], 10);
+                if (rStart <= h && rEnd > h && rec.ma303_assigned) {
+                    usedThisHour.push(...rec.ma303_assigned.split(', '));
+                }
+            }
+            for (let sel of selected) {
+                if (usedThisHour.includes(sel)) {
+                    alert(`⛔ 衝突！${h}:00-${h+1}:00 的「${sel}」已經分配給其他小組了！\n請選擇其他型號。`);
+                    btn.disabled = false; btn.innerText = "確認分配";
+                    return;
+                }
+            }
+        }
+        
+        const { error: updateError } = await db.from('borrow_records').update({ ma303_assigned: selected.join(', ') }).eq('id', id);
+        if (updateError) { alert("分配失敗：" + updateError.message); } 
+        else { alert("分配成功！"); loadAdminData(); }
+        btn.disabled = false; btn.innerText = "確認分配";
+    }
+
     async function loadUnreturnedOptions() {
         let select = document.getElementById("returnItemSelect");
         select.innerHTML = '<option value="">載入中...</option>';
-        const { data, error } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
-        
+        const { data } = await db.from('borrow_records').select('id, borrow_date, location, leader_name').eq('is_returned', false).order('borrow_date', { ascending: true });
         if (data) {
-            if (data.length === 0) {
-                select.innerHTML = '<option value="">目前沒有未歸還的設備</option>';
-            } else {
-                select.innerHTML = '<option value="">請選擇要歸還的項目...</option>';
-                data.forEach(item => {
-                    select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`;
-                });
-            }
+            select.innerHTML = data.length === 0 ? '<option value="">目前沒有未歸還的設備</option>' : '<option value="">請選擇要歸還的項目...</option>';
+            data.forEach(item => select.innerHTML += `<option value="${item.id}">${item.borrow_date} | ${item.location} - ${item.leader_name}</option>`);
         }
     }
 
-    // 📊 載入並依照條件與歸還狀態篩選後台資料
     async function loadAdminData() {
         let weekFilter = document.getElementById("adminWeekFilter").value;
         const { data: records, error } = await db.from('borrow_records').select('*').order('borrow_date', { ascending: false });
-        
         if (error) return;
 
-        let unreturnedHtml = '<tr><th>日期</th><th>時間</th><th>場地</th><th>負責人</th><th>電話</th><th>借出設備</th></tr>';
-        let returnedHtml = '<tr><th>借出日期</th><th>歸還日期</th><th>場地</th><th>負責人</th><th>歸還狀態</th><th>照片</th></tr>';
+        let unreturnedHtml = '<tr><th>日期/場地/人</th><th>借出設備</th><th>📍 領取照片</th><th>操作</th></tr>';
+        let returnedHtml = '<tr><th>借出與歸還日期</th><th>場地/人</th><th>狀態</th><th>操作</th></tr>';
 
         records.forEach(item => {
-            // 處理 12 月的週數篩選邏輯
-            if (item.borrow_date) {
+            if (weekFilter !== '' && item.borrow_date) {
                 let parts = item.borrow_date.split('-');
                 if (parts.length === 3) {
-                    let month = parseInt(parts[1], 10);
-                    let day = parseInt(parts[2], 10);
-                    
-                    if (month !== 12) return; // 略過非 12 月的紀錄
-                    
+                    let month = parseInt(parts[1], 10), day = parseInt(parts[2], 10);
+                    if (month !== 12) return; 
                     if (weekFilter === '1' && (day < 1 || day > 7)) return;
                     if (weekFilter === '2' && (day < 8 || day > 14)) return;
                     if (weekFilter === '3' && (day < 15 || day > 21)) return;
@@ -279,23 +339,40 @@
             }
 
             if (item.is_returned === false) {
-                let eq = `303:${item.ma303||0}, 707:${item.ma707||0}, 譜:${item.music_stand||0}, 琴:${item.piano}`;
+                let reqQty = parseInt(item.ma303) || 0;
+                let ma303AdminUI = '無';
+                if (reqQty > 0) {
+                    let assigned = item.ma303_assigned || '';
+                    let cA = assigned.includes('A機') ? 'checked' : '';
+                    let cB = assigned.includes('B機') ? 'checked' : '';
+                    let cC = assigned.includes('C機') ? 'checked' : '';
+                    ma303AdminUI = `<div style="font-size:11px; background:#fff; padding:5px; border-radius:4px; border:1px solid #ddd; display:inline-block; margin-top:2px;">
+                        申請 <b>${reqQty}</b> 台<br>
+                        <label><input type="checkbox" id="ma303_A_${item.id}" value="A機" ${cA}>A</label>
+                        <label><input type="checkbox" id="ma303_B_${item.id}" value="B機" ${cB}>B</label>
+                        <label><input type="checkbox" id="ma303_C_${item.id}" value="C機" ${cC}>C</label><br>
+                        <button id="btn_assign_${item.id}" onclick="assignMa303(${item.id}, '${item.borrow_date}', '${item.start_time}', '${item.end_time}', ${reqQty})" style="margin-top:4px; cursor:pointer;">確認分配</button>
+                    </div>`;
+                }
+
+                let eq = `MA303: ${ma303AdminUI}<br>MA707: ${item.ma707||0}<br>譜架: ${item.music_stand||0}<br>鋼琴: ${item.piano}`;
+                let photoAction = item.pickup_photo_url 
+                    ? `<a href="${item.pickup_photo_url}" target="_blank">查看</a> | <label class="upload-label">重傳<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>` 
+                    : `<label class="upload-label">上傳照片<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>`;
+
                 unreturnedHtml += `<tr>
-                    <td>${item.borrow_date}</td><td>${item.start_time}-${item.end_time}</td>
-                    <td>${item.location}</td><td>${item.leader_name}</td><td>${item.leader_phone}</td>
-                    <td style="font-size:11px;">${eq}</td>
+                    <td>${item.borrow_date}<br>${item.start_time}-${item.end_time}<br>${item.location}<br>${item.leader_name}</td>
+                    <td style="min-width:140px;">${eq}</td><td>${photoAction}</td>
+                    <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
                 </tr>`;
             } else {
-                let returnNote = item.return_notes ? item.return_notes : '正常';
                 returnedHtml += `<tr>
-                    <td>${item.borrow_date}</td><td>${item.return_date}</td>
-                    <td>${item.location}</td><td>${item.leader_name}</td>
-                    <td>${returnNote}</td>
-                    <td><a href="${item.return_photo_url}" target="_blank">檢視</a></td>
+                    <td>出: ${item.borrow_date}<br>還: ${item.return_date}</td><td>${item.location}<br>${item.leader_name}</td>
+                    <td>${item.return_notes || '正常'}<br><a href="${item.return_photo_url}" target="_blank">📸 歸還照</a></td>
+                    <td><button class="btn-danger" onclick="deleteRecord(${item.id})">🗑️ 刪除</button></td>
                 </tr>`;
             }
         });
-
         document.getElementById('unreturnedTable').innerHTML = unreturnedHtml;
         document.getElementById('returnedTable').innerHTML = returnedHtml;
     }
@@ -329,24 +406,18 @@
 
         for (let h = startHour; h < endHour; h++) {
             let usedMa303 = 0, usedMa707 = 0, usedStand = 0, usedPiano = false;
-
             for (let record of records) {
                 let recStart = parseInt(record.start_time.split(':')[0], 10);
                 let recEnd = parseInt(record.end_time.split(':')[0], 10);
-
                 if (recStart <= h && recEnd > h) {
-                    if (record.location === loc) {
-                        alert(`⛔ 【場地衝突】\n\n${h}:00-${h+1}:00 時段的「${loc}」已被預約！`);
-                        btn.disabled = false; btn.innerText = "送出借用申請"; return;
-                    }
+                    if (record.location === loc) { alert(`⛔ ${h}:00-${h+1}:00「${loc}」已被預約！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
                     usedMa303 += parseInt(record.ma303) || 0;
                     usedMa707 += parseInt(record.ma707) || 0;
                     usedStand += parseInt(record.music_stand) || 0;
                     if (record.piano === "是") usedPiano = true;
                 }
             }
-
-            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) { alert(`⛔ ${h}:00-${h+1}:00 MA303 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
+            if (reqMa303 > 0 && (reqMa303 + usedMa303 > 3)) { alert(`⛔ ${h}:00-${h+1}:00 MA303 總庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
             if (reqMa707 > 0 && (reqMa707 + usedMa707 > 1)) { alert(`⛔ ${h}:00-${h+1}:00 MA707 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
             if (reqStand > 0 && (reqStand + usedStand > 6)) { alert(`⛔ ${h}:00-${h+1}:00 譜架 庫存不足！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
             if (reqPiano && usedPiano) { alert(`⛔ ${h}:00-${h+1}:00 鋼琴 已被借出！`); btn.disabled = false; btn.innerText = "送出借用申請"; return; }
@@ -367,34 +438,26 @@
         btn.disabled = false; btn.innerText = "送出借用申請";
     }
 
-    // 🔥 升級版：利用 update 語法連動歸還與照片上傳
     async function submitReturn() {
         var recordId = document.getElementById("returnItemSelect").value;
         var returnDate = document.getElementById("returnDate").value;
         var fileInput = document.getElementById("returnPhoto");
         
-        if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請選擇歸還項目、填寫日期並上傳照片！"); return; }
-
+        if(!recordId || !returnDate || fileInput.files.length === 0) { alert("請填寫並上傳照片！"); return; }
         var btn = document.getElementById("submitReturnBtn");
-        btn.disabled = true; btn.innerText = "照片上傳與狀態更新中...";
+        btn.disabled = true; btn.innerText = "處理中...";
 
         var file = fileInput.files[0];
         var fileName = Date.now() + "_return_" + file.name; 
+        const { error: uploadError } = await db.storage.from('return_photos').upload(fileName, file);
+        if (uploadError) { alert("照片上傳失敗"); btn.disabled = false; btn.innerText = "送出歸還"; return; }
 
-        const { data: uploadData, error: uploadError } = await db.storage.from('return_photos').upload(fileName, file);
-        if (uploadError) { alert("照片上傳失敗：" + uploadError.message); btn.disabled = false; btn.innerText = "送出歸還通知"; return; }
-
-        const { data: publicUrlData } = db.storage.from('return_photos').getPublicUrl(fileName);
-
+        const { data: urlData } = db.storage.from('return_photos').getPublicUrl(fileName);
         const { error: dbError } = await db.from('borrow_records').update({
-            is_returned: true,
-            return_date: returnDate,
-            return_photo_url: publicUrlData.publicUrl,
-            return_notes: document.getElementById("returnNotes").value || "設備皆正常歸還"
+            is_returned: true, return_date: returnDate, return_photo_url: urlData.publicUrl, return_notes: document.getElementById("returnNotes").value
         }).eq('id', recordId);
 
-        if (dbError) { alert("資料寫入失敗：" + dbError.message); } 
-        else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
+        if (dbError) { alert("寫入失敗"); } else { alert("歸還成功！"); document.getElementById("returnForm").reset(); showSection('homeMenu'); }
         btn.disabled = false; btn.innerText = "送出歸還通知";
     }
 
