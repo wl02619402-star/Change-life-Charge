@@ -11,9 +11,13 @@
         h2 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
         .home-menu { display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .btn-main { width: 100%; max-width: 280px; padding: 18px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; text-align: center; }
+        /* 按鈕顏色設定 */
+        .btn-tutorial { background-color: #f39c12; color: white; }
         .btn-borrow { background-color: #3498db; color: white; }
-        .btn-return { background-color: #e67e22; color: white; }
         .btn-query { background-color: #9b59b6; color: white; }
+        .btn-speaker { background-color: #16a085; color: white; }
+        .btn-return { background-color: #e67e22; color: white; }
+        
         .form-section, .admin-section { display: none; }
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; font-size: 14px; }
@@ -41,10 +45,13 @@
 <div class="container">
     <h2 onclick="secretAdminTrigger()" style="user-select: none; cursor: pointer;">🎄 2026聖誕餐會 設備外借管理系統</h2>
 
+    <!-- 🔥 依照要求排序的全新選單 -->
     <div id="homeMenu" class="home-menu">
-        <button class="btn-main btn-borrow" onclick="showSection('rulesSection')">我要借設備</button>
-        <button class="btn-main btn-return" onclick="showSection('returnSection'); resetReturnForm();">我要歸還設備</button>
-        <button class="btn-main btn-query" onclick="showSection('querySection')">查詢我的借用狀態</button>
+        <button class="btn-main btn-tutorial" onclick="showSection('tutorialSection')">📖 借用教學</button>
+        <button class="btn-main btn-borrow" onclick="showSection('rulesSection')">📦 我要借設備</button>
+        <button class="btn-main btn-query" onclick="showSection('querySection')">🔍 查詢我的借用狀況</button>
+        <button class="btn-main btn-speaker" onclick="window.open('https://drive.google.com/file/d/1oHQoinOaArzRL0UxMvJP6zYvX3sx_S7h/view?usp=drive_link', '_blank')">🔊 音箱使用教學</button>
+        <button class="btn-main btn-return" onclick="showSection('returnSection'); resetReturnForm();">🔄 我要歸還設備</button>
     </div>
 
     <div id="loginModal" class="modal">
@@ -55,6 +62,22 @@
             <button class="btn-submit" onclick="adminLogin()">登入後台</button>
             <button class="btn-back" onclick="document.getElementById('loginModal').style.display='none'">取消</button>
         </div>
+    </div>
+
+    <!-- 🔥 新增：設備借用教學流程 -->
+    <div id="tutorialSection" class="form-section">
+        <h3 style="text-align: center; color: #f39c12;">📖 設備借用教學流程</h3>
+        <div style="background: #fff; padding: 20px; border-radius: 8px; line-height: 1.8; font-size: 14px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <h4 style="color: #3498db; margin-top: 0; border-bottom: 2px solid #ecf0f1; padding-bottom: 5px;">Step 1：填寫借用單</h4>
+            <p style="margin-top: 5px; color: #555;">點擊「我要借設備」，閱讀並同意借用守則後，填寫日期、借還時間、場地與負責人資訊。接著選擇需要的設備數量並送出，若遇時段衝突，系統會自動提醒！</p>
+
+            <h4 style="color: #9b59b6; margin-top: 20px; border-bottom: 2px solid #ecf0f1; padding-bottom: 5px;">Step 2：查詢與領取設備</h4>
+            <p style="margin-top: 5px; color: #555;">管理員審核後，會在後台為您分配設備型號（如 MA303 編號A）。請點擊「查詢我的借用狀況」，輸入聯絡電話即可查看分配結果。若管理員已拍照，還能點擊「📍 查看領取照片」確認設備放置位置。</p>
+
+            <h4 style="color: #e67e22; margin-top: 20px; border-bottom: 2px solid #ecf0f1; padding-bottom: 5px;">Step 3：歸還設備</h4>
+            <p style="margin-top: 5px; margin-bottom: 0; color: #555;">使用完畢後，點擊「我要歸還設備」，輸入您的聯絡電話尋找您的訂單。勾選要歸還的項目，並上傳設備歸還現況的照片，填寫狀態後送出即可完成歸還程序。</p>
+        </div>
+        <button class="btn-back" onclick="showSection('homeMenu')">返回首頁</button>
     </div>
 
     <div id="rulesModal" class="modal">
@@ -205,13 +228,16 @@
     }
 
     function showSection(sectionId) {
+        // 先隱藏所有區塊
         document.getElementById('homeMenu').style.display = 'none';
+        document.getElementById('tutorialSection').style.display = 'none';
         document.getElementById('borrowSection').style.display = 'none';
         document.getElementById('rulesSection').style.display = 'none';
         document.getElementById('returnSection').style.display = 'none';
         document.getElementById('querySection').style.display = 'none';
         document.getElementById('adminSection').style.display = 'none';
         
+        // 顯示指定的區塊
         if (sectionId === 'homeMenu') document.getElementById('homeMenu').style.display = 'flex';
         else document.getElementById(sectionId).style.display = 'block';
     }
@@ -383,13 +409,11 @@
         btn.disabled = false; btn.innerText = "確認分配";
     }
 
-    // 🔥 升級版：載入後台資料 (按日期分組 + 按時間從早到晚排序)
     async function loadAdminData() {
         let weekFilter = document.getElementById("adminWeekFilter").value;
         const { data: records, error } = await db.from('borrow_records').select('*');
         if (error) return;
 
-        // 1. 全域資料排序：優先比對日期(早到晚)，日期相同則比對時間(早到晚)
         records.sort((a, b) => {
             let dateA = a.borrow_date || '';
             let dateB = b.borrow_date || '';
@@ -400,7 +424,6 @@
             return timeA - timeB;
         });
 
-        // 2. 將資料依「日期」分類進不同的群組
         let unreturnedGroups = {};
         let returnedGroups = {};
 
@@ -426,7 +449,6 @@
             }
         });
 
-        // 3. 建立群組化的 HTML 介面 (未歸還)
         let unreturnedHtml = '';
         if (Object.keys(unreturnedGroups).length === 0) {
             unreturnedHtml = '<p style="color:#7f8c8d;">目前沒有資料</p>';
@@ -469,7 +491,6 @@
                         ? `<a href="${item.pickup_photo_url}" target="_blank">查看</a> | <label class="upload-label">重傳<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>` 
                         : `<label class="upload-label">上傳照片<input type="file" onchange="uploadPickupPhoto(${item.id}, this)" accept="image/*" hidden></label>`;
 
-                    // 移除了第一格的日期顯示，因為已經寫在群組標題了
                     unreturnedHtml += `<tr>
                         <td><b>${item.start_time}-${item.end_time}</b><br>${item.location}<br>${item.leader_name}<br>${item.leader_phone}</td>
                         <td style="min-width:140px;">${eq}</td><td>${photoAction}</td>
@@ -481,7 +502,6 @@
         }
         document.getElementById('unreturnedContainer').innerHTML = unreturnedHtml;
 
-        // 4. 建立群組化的 HTML 介面 (已歸還)
         let returnedHtml = '';
         if (Object.keys(returnedGroups).length === 0) {
             returnedHtml = '<p style="color:#7f8c8d;">目前沒有資料</p>';
